@@ -107,6 +107,7 @@ export function Canvas({
   const {
     selectedObjectId,
     setSelectedObjectId,
+    localDraftRef,
     handlePointerDown: onDrawPointerDown,
     handlePointerMove: onDrawPointerMove,
     handlePointerUp: onDrawPointerUp,
@@ -185,9 +186,14 @@ export function Canvas({
       ctx.translate(viewport.x, viewport.y);
       ctx.scale(viewport.zoom, viewport.zoom);
 
-      // Render remote collaborators' in-flight streaming drafts
+      // 1. Render remote collaborators' in-flight streaming drafts
       for (const draft of remoteDrafts.values()) {
         renderDraftStroke(ctx, draft);
+      }
+
+      // 2. Render local user's active in-flight draft stroke with 0ms lag
+      if (localDraftRef.current) {
+        renderDraftStroke(ctx, localDraftRef.current);
       }
 
       ctx.restore();
@@ -197,7 +203,7 @@ export function Canvas({
 
     animId = requestAnimationFrame(renderDrafts);
     return () => cancelAnimationFrame(animId);
-  }, [remoteDrafts, viewport, draftCanvasRef]);
+  }, [remoteDrafts, viewport, draftCanvasRef, localDraftRef]);
 
   // Keyboard Navigation & Shortcuts
   useEffect(() => {

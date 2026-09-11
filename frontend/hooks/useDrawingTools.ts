@@ -57,6 +57,7 @@ export function useDrawingTools({
   const dragStartRef = useRef<{ point: Point; objInitial: Partial<DrawingObject> } | null>(null);
   const lastEmitTimeRef = useRef<number>(0);
   const lastCursorEmitTimeRef = useRef<number>(0);
+  const localDraftRef = useRef<LiveDraftStroke | null>(null);
 
   // Generate unique object ID
   const createId = useCallback((prefix = 'obj') => {
@@ -120,7 +121,7 @@ export function useDrawingTools({
 
       if (currentTool === 'pencil') {
         currentPointsRef.current = [worldPt];
-        onEmitDraft({
+        const draft: LiveDraftStroke = {
           id: draftId,
           userId: currentUser?.userId || 'anon',
           userName: currentUser?.userName || 'User',
@@ -129,10 +130,14 @@ export function useDrawingTools({
           points: [worldPt],
           strokeColor,
           strokeWidth,
-        });
+          strokeStyle,
+          opacity,
+        };
+        localDraftRef.current = draft;
+        onEmitDraft(draft);
       } else {
         // Shapes
-        onEmitDraft({
+        const draft: LiveDraftStroke = {
           id: draftId,
           userId: currentUser?.userId || 'anon',
           userName: currentUser?.userName || 'User',
@@ -141,11 +146,16 @@ export function useDrawingTools({
           points: [],
           strokeColor,
           strokeWidth,
+          fillColor: fillColor !== 'none' ? fillColor : undefined,
+          strokeStyle,
+          opacity,
           startX: worldPt.x,
           startY: worldPt.y,
           currentX: worldPt.x,
           currentY: worldPt.y,
-        });
+        };
+        localDraftRef.current = draft;
+        onEmitDraft(draft);
       }
     },
     [
@@ -154,6 +164,9 @@ export function useDrawingTools({
       objects,
       strokeColor,
       strokeWidth,
+      fillColor,
+      strokeStyle,
+      opacity,
       currentUser,
       createId,
       onDeleteObject,
@@ -234,6 +247,9 @@ export function useDrawingTools({
 
       if (currentTool === 'pencil') {
         currentPointsRef.current.push(worldPt);
+        if (localDraftRef.current) {
+          localDraftRef.current.points = [...currentPointsRef.current];
+        }
 
         if (now - lastEmitTimeRef.current > 25) {
           onEmitDraft({
@@ -245,10 +261,16 @@ export function useDrawingTools({
             points: [...currentPointsRef.current],
             strokeColor,
             strokeWidth,
+            strokeStyle,
+            opacity,
           });
           lastEmitTimeRef.current = now;
         }
       } else if (startPointRef.current) {
+        if (localDraftRef.current) {
+          localDraftRef.current.currentX = worldPt.x;
+          localDraftRef.current.currentY = worldPt.y;
+        }
         if (now - lastEmitTimeRef.current > 25) {
           onEmitDraft({
             id: draftId,
@@ -259,6 +281,9 @@ export function useDrawingTools({
             points: [],
             strokeColor,
             strokeWidth,
+            fillColor: fillColor !== 'none' ? fillColor : undefined,
+            strokeStyle,
+            opacity,
             startX: startPointRef.current.x,
             startY: startPointRef.current.y,
             currentX: worldPt.x,
@@ -275,6 +300,9 @@ export function useDrawingTools({
       objects,
       strokeColor,
       strokeWidth,
+      fillColor,
+      strokeStyle,
+      opacity,
       currentUser,
       onEmitCursor,
       onUpdateObject,
@@ -288,6 +316,7 @@ export function useDrawingTools({
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       if (!isDrawingRef.current) return;
       isDrawingRef.current = false;
+      localDraftRef.current = null;
 
       const rect = e.currentTarget.getBoundingClientRect();
       const screenPt: Point = {
@@ -417,6 +446,7 @@ export function useDrawingTools({
   // Handle pointer leave
   const handlePointerLeave = useCallback(() => {
     onEmitCursor(null);
+    localDraftRef.current = null;
     if (isDrawingRef.current) {
       if (activeDraftIdRef.current) {
         onEmitDraftEnd(activeDraftIdRef.current);
@@ -441,6 +471,7 @@ export function useDrawingTools({
     setOpacity,
     selectedObjectId,
     setSelectedObjectId,
+    localDraftRef,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,

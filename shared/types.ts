@@ -132,6 +132,9 @@ export interface LiveDraftStroke {
   points: Point[];
   strokeColor: string;
   strokeWidth: number;
+  fillColor?: string;
+  strokeStyle?: StrokeStyle;
+  opacity?: number;
   // For live shape drafting preview
   startX?: number;
   startY?: number;
