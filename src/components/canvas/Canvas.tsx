@@ -21,18 +21,20 @@ import {
   renderSelectionOverlay,
   exportCanvasAsBlob,
 } from '@/lib/renderer';
-import { useCanvasDoc } from '@/hooks/useCanvasDoc';
+import { useYjsRoom } from '@/hooks/useYjsRoom';
 import { DockToolbar } from '../toolbar/DockToolbar';
 import { StylePopover } from '../toolbar/StylePopover';
 import { CanvasHeader } from '../header/CanvasHeader';
 import { TextEditorOverlay } from './TextEditorOverlay';
 
 interface CanvasProps {
+  roomId?: string;
   roomName?: string;
   initialElements?: CanvasElement[];
 }
 
 export const Canvas: React.FC<CanvasProps> = ({
+  roomId = 'default-room',
   roomName = 'CollabCanvas Studio',
   initialElements = [],
 }) => {
@@ -41,9 +43,10 @@ export const Canvas: React.FC<CanvasProps> = ({
   const draftCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Yjs Doc & Local Undo/Redo Engine
+  // Yjs Doc & Local-First CRDT Engine
   const {
     elements,
+    localUser,
     addElement,
     updateElement,
     deleteElement,
@@ -52,7 +55,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     redo,
     canUndo,
     canRedo,
-  } = useCanvasDoc(initialElements);
+  } = useYjsRoom(roomId, initialElements);
 
   // Viewport & Tool State
   const [transform, setTransform] = useState<ViewportTransform>({
