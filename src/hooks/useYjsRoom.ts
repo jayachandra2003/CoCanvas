@@ -66,6 +66,7 @@ export interface UseYjsRoomReturn {
   canUndo: boolean;
   canRedo: boolean;
   updateCursor: (worldPos: Point | null, activeTool: ToolType) => void;
+  updateSelection: (selectedIds: string[]) => void;
   doc: Y.Doc;
 }
 
@@ -156,6 +157,7 @@ export function useYjsRoom(
       user: localUser,
       cursor: null,
       activeTool: 'pen',
+      selectedElementIds: [],
       lastActive: Date.now(),
     });
 
@@ -188,6 +190,7 @@ export function useYjsRoom(
             user: state.user,
             cursor: state.cursor || null,
             activeTool: state.activeTool || 'pen',
+            selectedElementIds: state.selectedElementIds || [],
             lastActive: state.lastActive || Date.now(),
           });
         }
@@ -274,6 +277,15 @@ export function useYjsRoom(
 
     provider.awareness.setLocalStateField('cursor', worldPos);
     provider.awareness.setLocalStateField('activeTool', activeTool);
+    provider.awareness.setLocalStateField('lastActive', Date.now());
+  }, []);
+
+  // Update selected elements in awareness
+  const updateSelection = useCallback((selectedIds: string[]) => {
+    const provider = providerRef.current;
+    if (!provider) return;
+
+    provider.awareness.setLocalStateField('selectedElementIds', selectedIds);
     provider.awareness.setLocalStateField('lastActive', Date.now());
   }, []);
 
@@ -364,6 +376,7 @@ export function useYjsRoom(
     canUndo,
     canRedo,
     updateCursor,
+    updateSelection,
     doc: docRef.current!,
   };
 }

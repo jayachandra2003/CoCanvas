@@ -19,6 +19,7 @@ import {
   renderElement,
   renderActiveDraft,
   renderSelectionOverlay,
+  renderRemoteSelections,
   exportCanvasAsBlob,
 } from '@/lib/renderer';
 import { useYjsRoom } from '@/hooks/useYjsRoom';
@@ -63,6 +64,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     canUndo,
     canRedo,
     updateCursor,
+    updateSelection,
   } = useYjsRoom(roomId, initialElements);
 
   // Viewport & Tool State
@@ -139,7 +141,10 @@ export const Canvas: React.FC<CanvasProps> = ({
       }
     }
 
-    // Render Selection Outline
+    // Render Remote Peer Presence Selections
+    renderRemoteSelections(ctx, elements, peers);
+
+    // Render Local Selection Outline
     const selectedElements = elements
       .filter((el) => selectedIds.includes(el.id) && !el.isDeleted)
       .map((el) => {
@@ -158,7 +163,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     ctx.restore();
-  }, [transform, elements, selectedIds, localUser?.color]);
+  }, [transform, elements, selectedIds, localUser?.color, peers]);
 
   // Render Draft Canvas (Active Stroke / Active Shape Draft)
   const drawDraftCanvas = useCallback(() => {
@@ -220,6 +225,11 @@ export const Canvas: React.FC<CanvasProps> = ({
   useEffect(() => {
     drawBaseCanvas();
   }, [drawBaseCanvas]);
+
+  // Broadcast selection changes to peers via awareness
+  useEffect(() => {
+    updateSelection(selectedIds);
+  }, [selectedIds, updateSelection]);
 
   // Zoom Controls
   const handleZoom = useCallback((factor: number, focalPoint?: Point) => {

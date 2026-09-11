@@ -10,6 +10,7 @@ export interface PeerAwarenessState {
   user: UserPresenceData;
   cursor: Point | null; // In world coordinates
   activeTool: ToolType;
+  selectedElementIds: string[]; // IDs of elements currently selected by peer
   lastActive: number;
 }
 

@@ -1,4 +1,5 @@
 import { CanvasElement, ViewportTransform, ActiveDraftElement, SelectionBounds } from '@/types/canvas';
+import { PeerAwarenessState } from '@/types/presence';
 import { getElementBounds } from './math';
 
 /**
@@ -17,7 +18,7 @@ export function renderGrid(
   const gridSize = 24 * transform.scale;
   if (gridSize < 8) {
     ctx.restore();
-    return; // Don't render sub-pixel grid to avoid moire artifacts
+    return;
   }
 
   const startX = (transform.x % gridSize + gridSize) % gridSize;
@@ -72,7 +73,6 @@ export function renderElement(
       if (pts.length === 2) {
         ctx.lineTo(element.x + pts[1].x, element.y + pts[1].y);
       } else {
-        // Midpoint quadratic curve smoothing
         for (let i = 1; i < pts.length - 1; i++) {
           const current = { x: element.x + pts[i].x, y: element.y + pts[i].y };
           const next = { x: element.x + pts[i + 1].x, y: element.y + pts[i + 1].y };
@@ -137,16 +137,14 @@ export function renderElement(
       const p1 = { x: element.x + element.points[0].x, y: element.y + element.points[0].y };
       const p2 = { x: element.x + element.points[1].x, y: element.y + element.points[1].y };
 
-      // Line stem
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.stroke();
 
-      // Arrowhead
       const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
       const headLength = Math.max(12, element.strokeWidth * 3.5);
-      const headAngle = Math.PI / 6; // 30 degrees
+      const headAngle = Math.PI / 6;
 
       ctx.beginPath();
       ctx.moveTo(p2.x, p2.y);
@@ -185,7 +183,7 @@ export function renderElement(
 }
 
 /**
- * Renders an active in-progress draft element while the user is actively dragging/drawing.
+ * Renders an active in-progress draft element while dragging/drawing.
  */
 export function renderActiveDraft(
   ctx: CanvasRenderingContext2D,
@@ -297,7 +295,7 @@ export function renderActiveDraft(
 }
 
 /**
- * Renders selection outlines, bounding boxes, and handles for selected elements.
+ * Renders local user selection outlines and anchor points.
  */
 export function renderSelectionOverlay(
   ctx: CanvasRenderingContext2D,
@@ -340,6 +338,63 @@ export function renderSelectionOverlay(
 }
 
 /**
+ * Renders presence-aware remote selection outlines for connected peers.
+ */
+export function renderRemoteSelections(
+  ctx: CanvasRenderingContext2D,
+  elements: CanvasElement[],
+  peers: PeerAwarenessState[]
+) {
+  if (peers.length === 0) return;
+
+  ctx.save();
+  for (const peer of peers) {
+    if (!peer.selectedElementIds || peer.selectedElementIds.length === 0) continue;
+
+    const peerElements = elements.filter(
+      (el) => peer.selectedElementIds.includes(el.id) && !el.isDeleted
+    );
+
+    if (peerElements.length === 0) continue;
+
+    const peerColor = peer.user.color || '#EC4899';
+    const peerName = peer.user.name;
+
+    for (const el of peerElements) {
+      const bounds = getElementBounds(el);
+
+      // Remote selection bounding box (vibrant peer color)
+      ctx.strokeStyle = peerColor;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+      // Peer Name Badge tag rendered directly above bounding box
+      ctx.setLineDash([]);
+      ctx.font = '10px Inter, sans-serif';
+      const textMetrics = ctx.measureText(peerName);
+      const tagPadding = 5;
+      const tagWidth = textMetrics.width + tagPadding * 2;
+      const tagHeight = 16;
+      const tagX = bounds.x;
+      const tagY = bounds.y - tagHeight - 3;
+
+      // Tag Background
+      ctx.fillStyle = peerColor;
+      ctx.beginPath();
+      ctx.roundRect(tagX, tagY, tagWidth, tagHeight, 4);
+      ctx.fill();
+
+      // Tag Text
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(peerName, tagX + tagPadding, tagY + tagHeight / 2);
+    }
+  }
+  ctx.restore();
+}
+
+/**
  * Export canvas to PNG data URL with tight bounding box auto-crop.
  */
 export function exportCanvasAsBlob(
@@ -347,7 +402,7 @@ export function exportCanvasAsBlob(
   options: {
     padding?: number;
     scale?: number;
-    backgroundColor?: string | null; // null for transparent
+    backgroundColor?: string | null;
   } = {}
 ): Promise<Blob | null> {
   return new Promise((resolve) => {
@@ -358,7 +413,7 @@ export function exportCanvasAsBlob(
     }
 
     const pad = options.padding ?? 40;
-    const scale = options.scale ?? 2; // Default 2x for Retina sharpness
+    const scale = options.scale ?? 2;
 
     let minX = Infinity;
     let minY = Infinity;
