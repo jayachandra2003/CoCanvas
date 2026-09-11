@@ -44,10 +44,12 @@ export function getRandomUser(): UserPresenceData {
   return { clientId, name: randomName, color: randomColor };
 }
 
-const SIGNALING_SERVERS = [
-  'wss://signaling.yjs.dev',
-  'wss://y-webrtc-signaling-eu.herokuapp.com',
-  'wss://y-webrtc-signaling-us.herokuapp.com',
+// Active and responsive WebRTC signaling servers with local and public fallback
+const DEFAULT_SIGNALING_SERVERS = [
+  'wss://y-webrtc-signaling.fly.dev',
+  'wss://webrtc-signaling.fly.dev',
+  'ws://127.0.0.1:4444',
+  'ws://localhost:4444',
 ];
 
 export interface UseYjsRoomReturn {
@@ -57,6 +59,7 @@ export interface UseYjsRoomReturn {
   connectionStatus: ConnectionStatus;
   peerCount: number;
   isIndexedDbSynced: boolean;
+  yjsClientId: number;
   addElement: (element: CanvasElement) => void;
   updateElement: (id: string, partial: Partial<CanvasElement>) => void;
   deleteElement: (id: string) => void;
@@ -74,6 +77,7 @@ export function useYjsRoom(
   roomId: string = 'default-room',
   initialElements: CanvasElement[] = []
 ): UseYjsRoomReturn {
+  // Instance references scoped to the active roomId
   const docRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebrtcProvider | null>(null);
   const idbRef = useRef<IndexeddbPersistence | null>(null);
@@ -89,66 +93,76 @@ export function useYjsRoom(
   const [isIndexedDbSynced, setIsIndexedDbSynced] = useState<boolean>(false);
   const [canUndo, setCanUndo] = useState<boolean>(false);
   const [canRedo, setCanRedo] = useState<boolean>(false);
+  const [yjsClientId, setYjsClientId] = useState<number>(0);
 
-  // Initialize Local User Identity
+  // Initialize Persistent Local User Identity
   if (!localUserRef.current) {
-    localUserRef.current = getRandomUser();
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem('collab_user_identity');
+        if (stored) {
+          localUserRef.current = JSON.parse(stored);
+        } else {
+          const newUser = getRandomUser();
+          sessionStorage.setItem('collab_user_identity', JSON.stringify(newUser));
+          localUserRef.current = newUser;
+        }
+      } catch (e) {
+        localUserRef.current = getRandomUser();
+      }
+    } else {
+      localUserRef.current = getRandomUser();
+    }
   }
 
-  // Initialize Doc, Map, and UndoManager
-  if (!docRef.current) {
+  useEffect(() => {
+    // 1. Create a fresh isolated Y.Doc for this specific roomId
     const doc = new Y.Doc();
     const elementsMap = doc.getMap<CanvasElement>('elements');
-    const localOrigin = localUserRef.current.clientId;
+    const localUser = localUserRef.current || getRandomUser();
+    const localOrigin = localUser.clientId;
 
+    docRef.current = doc;
+    elementsMapRef.current = elementsMap;
+    setYjsClientId(doc.clientID);
+
+    // Track transactions authored with localOrigin for undo/redo
     const undoManager = new Y.UndoManager(elementsMap, {
       trackedOrigins: new Set([localOrigin]),
       captureTimeout: 0,
     });
+    undoManagerRef.current = undoManager;
 
-    if (initialElements.length > 0) {
-      doc.transact(() => {
-        for (const el of initialElements) {
-          elementsMap.set(el.id, el);
+    const roomName = `collab-room-${roomId.trim().toLowerCase()}`;
+
+    // 2. Initialize Local-First IndexedDB Persistence
+    let idbProvider: IndexeddbPersistence | null = null;
+    if (typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
+      idbProvider = new IndexeddbPersistence(roomName, doc);
+      idbRef.current = idbProvider;
+
+      idbProvider.on('synced', () => {
+        setIsIndexedDbSynced(true);
+        syncElementsFromMap();
+
+        // If doc is empty after IndexedDB load, attempt Firestore snapshot rehydration
+        if (elementsMap.size === 0) {
+          loadRoomSnapshotFromFirestore(roomId).then((snapshot) => {
+            if (snapshot && elementsMap.size === 0) {
+              Y.applyUpdate(doc, snapshot, 'firestore-rehydration');
+            }
+          });
         }
-      }, localOrigin);
+      });
     }
 
-    docRef.current = doc;
-    elementsMapRef.current = elementsMap;
-    undoManagerRef.current = undoManager;
-  }
+    // 3. Initialize Decentralized WebRTC Transport
+    const customSignaling = process.env.NEXT_PUBLIC_SIGNALING_URL
+      ? [process.env.NEXT_PUBLIC_SIGNALING_URL, ...DEFAULT_SIGNALING_SERVERS]
+      : DEFAULT_SIGNALING_SERVERS;
 
-  useEffect(() => {
-    const doc = docRef.current;
-    const elementsMap = elementsMapRef.current;
-    const undoManager = undoManagerRef.current;
-    const localUser = localUserRef.current;
-    if (!doc || !elementsMap || !undoManager || !localUser) return;
-
-    const roomName = `collab-canvas-${roomId}`;
-
-    // 1. Initialize Local-First IndexedDB Persistence
-    const idbProvider = new IndexeddbPersistence(roomName, doc);
-    idbRef.current = idbProvider;
-
-    idbProvider.on('synced', () => {
-      setIsIndexedDbSynced(true);
-      syncElementsFromMap();
-
-      // If document is still empty after loading IndexedDB, check Firestore snapshot for zero-peer rehydration
-      if (elementsMap.size === 0) {
-        loadRoomSnapshotFromFirestore(roomId).then((snapshot) => {
-          if (snapshot && elementsMap.size === 0) {
-            Y.applyUpdate(doc, snapshot, 'firestore-rehydration');
-          }
-        });
-      }
-    });
-
-    // 2. Initialize Decentralized WebRTC Transport
     const provider = new WebrtcProvider(roomName, doc, {
-      signaling: SIGNALING_SERVERS,
+      signaling: customSignaling,
     });
     providerRef.current = provider;
 
@@ -200,7 +214,7 @@ export function useYjsRoom(
       setPeerCount(states.size);
     };
 
-    // Connection status handlers
+    // WebRTC connection status handler
     const handleStatus = (event: { connected: boolean }) => {
       if (!navigator.onLine) {
         setConnectionStatus('offline');
@@ -211,7 +225,6 @@ export function useYjsRoom(
       }
     };
 
-    // Online/Offline Browser Event Handlers
     const handleBrowserOnline = () => {
       setConnectionStatus('connected');
     };
@@ -231,10 +244,7 @@ export function useYjsRoom(
       }, 3000);
     };
 
-    syncElementsFromMap();
-    updateUndoRedoState();
-    handleAwarenessChange();
-
+    // Initialize listeners
     elementsMap.observe(syncElementsFromMap);
     doc.on('update', handleDocUpdate);
     undoManager.on('stack-item-added', updateUndoRedoState);
@@ -248,6 +258,9 @@ export function useYjsRoom(
     window.addEventListener('online', handleBrowserOnline);
     window.addEventListener('offline', handleBrowserOffline);
 
+    syncElementsFromMap();
+    updateUndoRedoState();
+    handleAwarenessChange();
     setConnectionStatus(navigator.onLine ? 'connected' : 'offline');
 
     return () => {
@@ -259,21 +272,26 @@ export function useYjsRoom(
       undoManager.off('stack-item-added', updateUndoRedoState);
       undoManager.off('stack-item-popped', updateUndoRedoState);
       undoManager.off('stack-cleared', updateUndoRedoState);
+
       provider.awareness.off('change', handleAwarenessChange);
       provider.off('status', handleStatus);
       provider.off('peers', handleAwarenessChange);
+
       window.removeEventListener('online', handleBrowserOnline);
       window.removeEventListener('offline', handleBrowserOffline);
+
       provider.destroy();
-      idbProvider.destroy();
+      if (idbProvider) {
+        idbProvider.destroy();
+      }
+      doc.destroy();
     };
   }, [roomId]);
 
   // Update cursor position in awareness
   const updateCursor = useCallback((worldPos: Point | null, activeTool: ToolType) => {
     const provider = providerRef.current;
-    const localUser = localUserRef.current;
-    if (!provider || !localUser) return;
+    if (!provider) return;
 
     provider.awareness.setLocalStateField('cursor', worldPos);
     provider.awareness.setLocalStateField('activeTool', activeTool);
@@ -367,6 +385,7 @@ export function useYjsRoom(
     peerCount,
     connectionStatus,
     isIndexedDbSynced,
+    yjsClientId,
     addElement,
     updateElement,
     deleteElement,

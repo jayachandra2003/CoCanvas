@@ -30,6 +30,7 @@ import { TextEditorOverlay } from './TextEditorOverlay';
 import { MultiplayerCursors } from './MultiplayerCursors';
 import { OfflineBanner } from './OfflineBanner';
 import { EmptyStateHint } from './EmptyStateHint';
+import { DevDiagnostics } from './DevDiagnostics';
 
 interface CanvasProps {
   roomId?: string;
@@ -55,6 +56,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     peerCount,
     connectionStatus,
     isIndexedDbSynced,
+    yjsClientId,
     addElement,
     updateElement,
     deleteElement,
@@ -790,6 +792,14 @@ export const Canvas: React.FC<CanvasProps> = ({
 
       {/* Subtle Empty State Onboarding */}
       <EmptyStateHint isVisible={elements.length === 0} />
+
+      {/* Real-Time WebRTC Diagnostics Pill */}
+      <DevDiagnostics
+        roomId={roomId}
+        clientId={yjsClientId}
+        peerCount={peerCount}
+        status={connectionStatus}
+      />
     </div>
   );
 };
