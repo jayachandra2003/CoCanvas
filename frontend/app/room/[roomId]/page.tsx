@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import {
   DrawingObject,
@@ -19,7 +19,7 @@ import { ToastContainer, ToastMessage } from '@/components/ui/Toast';
 import { renderObject } from '@/lib/canvasRenderer';
 import { getBoundingBox } from '@/lib/math';
 
-export default function RoomPage() {
+function RoomContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const roomId = (params?.roomId as string)?.toUpperCase() || 'DEFAULT';
@@ -362,5 +362,22 @@ export default function RoomPage() {
       {/* 6. Notifications Toast Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </main>
+  );
+}
+
+export default function RoomPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-screen h-screen flex items-center justify-center bg-slate-50">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+            <span className="text-xs font-medium text-slate-500">Loading CollabDraw board...</span>
+          </div>
+        </div>
+      }
+    >
+      <RoomContent />
+    </Suspense>
   );
 }
