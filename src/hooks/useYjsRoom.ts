@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as Y from 'yjs';
-import { CanvasElement } from '@/types/canvas';
-
-export interface UserPresence {
-  clientId: string;
-  name: string;
-  color: string;
-}
+import { WebrtcProvider } from 'y-webrtc';
+import { CanvasElement, ToolType, Point } from '@/types/canvas';
+import {
+  UserPresenceData,
+  PeerAwarenessState,
+  ConnectionStatus,
+} from '@/types/presence';
 
 export const USER_COLORS = [
   '#3B82F6', // Blue
@@ -32,16 +32,25 @@ const USER_NAMES = [
   'Neon Wolf',
 ];
 
-export function getRandomUser(): UserPresence {
+export function getRandomUser(): UserPresenceData {
   const randomColor = USER_COLORS[Math.floor(Math.random() * USER_COLORS.length)];
   const randomName = USER_NAMES[Math.floor(Math.random() * USER_NAMES.length)];
   const clientId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   return { clientId, name: randomName, color: randomColor };
 }
 
+const SIGNALING_SERVERS = [
+  'wss://signaling.yjs.dev',
+  'wss://y-webrtc-signaling-eu.herokuapp.com',
+  'wss://y-webrtc-signaling-us.herokuapp.com',
+];
+
 export interface UseYjsRoomReturn {
   elements: CanvasElement[];
-  localUser: UserPresence;
+  localUser: UserPresenceData;
+  peers: PeerAwarenessState[];
+  connectionStatus: ConnectionStatus;
+  peerCount: number;
   addElement: (element: CanvasElement) => void;
   updateElement: (id: string, partial: Partial<CanvasElement>) => void;
   deleteElement: (id: string) => void;
@@ -50,6 +59,7 @@ export interface UseYjsRoomReturn {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  updateCursor: (worldPos: Point | null, activeTool: ToolType) => void;
   doc: Y.Doc;
 }
 
@@ -58,12 +68,15 @@ export function useYjsRoom(
   initialElements: CanvasElement[] = []
 ): UseYjsRoomReturn {
   const docRef = useRef<Y.Doc | null>(null);
+  const providerRef = useRef<WebrtcProvider | null>(null);
   const elementsMapRef = useRef<Y.Map<CanvasElement> | null>(null);
   const undoManagerRef = useRef<Y.UndoManager | null>(null);
-  const localUserRef = useRef<UserPresence | null>(null);
-  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+  const localUserRef = useRef<UserPresenceData | null>(null);
 
   const [elements, setElements] = useState<CanvasElement[]>(initialElements);
+  const [peers, setPeers] = useState<PeerAwarenessState[]>([]);
+  const [peerCount, setPeerCount] = useState<number>(1);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [canUndo, setCanUndo] = useState<boolean>(false);
   const [canRedo, setCanRedo] = useState<boolean>(false);
 
@@ -78,7 +91,6 @@ export function useYjsRoom(
     const elementsMap = doc.getMap<CanvasElement>('elements');
     const localOrigin = localUserRef.current.clientId;
 
-    // Track only transactions authored by this specific local client
     const undoManager = new Y.UndoManager(elementsMap, {
       trackedOrigins: new Set([localOrigin]),
       captureTimeout: 0,
@@ -104,12 +116,21 @@ export function useYjsRoom(
     const localUser = localUserRef.current;
     if (!doc || !elementsMap || !undoManager || !localUser) return;
 
-    // Set up BroadcastChannel for instant local multi-tab CRDT sync
-    const channelName = `collab_sync_${roomId}`;
-    const channel = new BroadcastChannel(channelName);
-    broadcastChannelRef.current = channel;
+    // Connect WebRTC Provider
+    const provider = new WebrtcProvider(`collab-canvas-${roomId}`, doc, {
+      signaling: SIGNALING_SERVERS,
+    });
+    providerRef.current = provider;
 
-    // Sync state to React
+    // Set initial awareness state
+    provider.awareness.setLocalState({
+      user: localUser,
+      cursor: null,
+      activeTool: 'pen',
+      lastActive: Date.now(),
+    });
+
+    // Sync elements to React state
     const syncElementsFromMap = () => {
       const arr: CanvasElement[] = [];
       elementsMap.forEach((val) => {
@@ -126,71 +147,81 @@ export function useYjsRoom(
       setCanRedo(undoManager.redoStack.length > 0);
     };
 
+    // Update awareness peers
+    const handleAwarenessChange = () => {
+      const states = provider.awareness.getStates();
+      const peerList: PeerAwarenessState[] = [];
+      const currentClientId = doc.clientID;
+
+      states.forEach((state, clientKey) => {
+        if (clientKey !== currentClientId && state.user) {
+          peerList.push({
+            user: state.user,
+            cursor: state.cursor || null,
+            activeTool: state.activeTool || 'pen',
+            lastActive: state.lastActive || Date.now(),
+          });
+        }
+      });
+
+      setPeers(peerList);
+      setPeerCount(states.size);
+    };
+
+    // Listen for connection status
+    const handleStatus = (event: { connected: boolean }) => {
+      if (event.connected) {
+        setConnectionStatus('connected');
+      } else {
+        setConnectionStatus('connecting');
+      }
+    };
+
+    // Listen for peer connection updates
+    const handlePeers = () => {
+      handleAwarenessChange();
+    };
+
     syncElementsFromMap();
     updateUndoRedoState();
+    handleAwarenessChange();
 
-    // 1. Listen for local document updates and broadcast to other local tabs
-    const handleDocUpdate = (update: Uint8Array, origin: unknown) => {
-      if (origin === localUser.clientId) {
-        // Send binary update as ArrayBuffer to other tabs
-        channel.postMessage({
-          type: 'yjs-update',
-          update: Array.from(update),
-          senderId: localUser.clientId,
-        });
-      }
-    };
+    elementsMap.observe(syncElementsFromMap);
+    undoManager.on('stack-item-added', updateUndoRedoState);
+    undoManager.on('stack-item-popped', updateUndoRedoState);
+    undoManager.on('stack-cleared', updateUndoRedoState);
 
-    // 2. Listen for remote updates from other tabs
-    channel.onmessage = (event) => {
-      const data = event.data;
-      if (data && data.type === 'yjs-update' && data.senderId !== localUser.clientId) {
-        const updateArray = new Uint8Array(data.update);
-        // Apply update with remote sender origin so local UndoManager ignores it
-        Y.applyUpdate(doc, updateArray, data.senderId);
-      } else if (data && data.type === 'request-state' && data.senderId !== localUser.clientId) {
-        // A new tab opened and requested current state
-        const stateUpdate = Y.encodeStateAsUpdate(doc);
-        channel.postMessage({
-          type: 'yjs-update',
-          update: Array.from(stateUpdate),
-          senderId: localUser.clientId,
-        });
-      }
-    };
+    provider.awareness.on('change', handleAwarenessChange);
+    provider.on('status', handleStatus);
+    provider.on('peers', handlePeers);
 
-    // Request current state from other existing tabs in the room
-    channel.postMessage({
-      type: 'request-state',
-      senderId: localUser.clientId,
-    });
-
-    const mapObserver = () => {
-      syncElementsFromMap();
-      updateUndoRedoState();
-    };
-
-    const undoObserver = () => {
-      updateUndoRedoState();
-    };
-
-    doc.on('update', handleDocUpdate);
-    elementsMap.observe(mapObserver);
-    undoManager.on('stack-item-added', undoObserver);
-    undoManager.on('stack-item-popped', undoObserver);
-    undoManager.on('stack-cleared', undoObserver);
+    // Default status to connected once provider is up
+    setConnectionStatus('connected');
 
     return () => {
-      doc.off('update', handleDocUpdate);
-      elementsMap.unobserve(mapObserver);
-      undoManager.off('stack-item-added', undoObserver);
-      undoManager.off('stack-item-popped', undoObserver);
-      undoManager.off('stack-cleared', undoObserver);
-      channel.close();
+      elementsMap.unobserve(syncElementsFromMap);
+      undoManager.off('stack-item-added', updateUndoRedoState);
+      undoManager.off('stack-item-popped', updateUndoRedoState);
+      undoManager.off('stack-cleared', updateUndoRedoState);
+      provider.awareness.off('change', handleAwarenessChange);
+      provider.off('status', handleStatus);
+      provider.off('peers', handlePeers);
+      provider.destroy();
     };
   }, [roomId]);
 
-  // Mutations authored by local client
+  // Update cursor position in awareness
+  const updateCursor = useCallback((worldPos: Point | null, activeTool: ToolType) => {
+    const provider = providerRef.current;
+    const localUser = localUserRef.current;
+    if (!provider || !localUser) return;
+
+    provider.awareness.setLocalStateField('cursor', worldPos);
+    provider.awareness.setLocalStateField('activeTool', activeTool);
+    provider.awareness.setLocalStateField('lastActive', Date.now());
+  }, []);
+
+  // Mutations
   const addElement = useCallback((element: CanvasElement) => {
     const doc = docRef.current;
     const elementsMap = elementsMapRef.current;
@@ -264,6 +295,9 @@ export function useYjsRoom(
   return {
     elements,
     localUser: localUserRef.current!,
+    peers,
+    peerCount,
+    connectionStatus,
     addElement,
     updateElement,
     deleteElement,
@@ -272,6 +306,7 @@ export function useYjsRoom(
     redo,
     canUndo,
     canRedo,
+    updateCursor,
     doc: docRef.current!,
   };
 }

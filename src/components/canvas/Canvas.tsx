@@ -26,6 +26,7 @@ import { DockToolbar } from '../toolbar/DockToolbar';
 import { StylePopover } from '../toolbar/StylePopover';
 import { CanvasHeader } from '../header/CanvasHeader';
 import { TextEditorOverlay } from './TextEditorOverlay';
+import { MultiplayerCursors } from './MultiplayerCursors';
 
 interface CanvasProps {
   roomId?: string;
@@ -43,10 +44,13 @@ export const Canvas: React.FC<CanvasProps> = ({
   const draftCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Yjs Doc & Local-First CRDT Engine
+  // Yjs Doc & Real-Time Multiplayer CRDT Engine
   const {
     elements,
     localUser,
+    peers,
+    peerCount,
+    connectionStatus,
     addElement,
     updateElement,
     deleteElement,
@@ -55,6 +59,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     redo,
     canUndo,
     canRedo,
+    updateCursor,
   } = useYjsRoom(roomId, initialElements);
 
   // Viewport & Tool State
@@ -121,7 +126,6 @@ export const Canvas: React.FC<CanvasProps> = ({
         dragCurrentElementPos.current &&
         dragStartElementPos.current
       ) {
-        // Draw temporarily translated element
         renderElement(ctx, {
           ...el,
           x: dragCurrentElementPos.current.x,
@@ -147,11 +151,11 @@ export const Canvas: React.FC<CanvasProps> = ({
       });
 
     if (selectedElements.length > 0) {
-      renderSelectionOverlay(ctx, selectedElements, '#3B82F6');
+      renderSelectionOverlay(ctx, selectedElements, localUser?.color || '#3B82F6');
     }
 
     ctx.restore();
-  }, [transform, elements, selectedIds]);
+  }, [transform, elements, selectedIds, localUser?.color]);
 
   // Render Draft Canvas (Active Stroke / Active Shape Draft)
   const drawDraftCanvas = useCallback(() => {
@@ -296,10 +300,9 @@ export const Canvas: React.FC<CanvasProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Keyboard Shortcuts Handler (including Undo/Redo)
+  // Keyboard Shortcuts Handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept shortcuts when typing in inputs/textareas
       if (
         document.activeElement?.tagName === 'INPUT' ||
         document.activeElement?.tagName === 'TEXTAREA'
@@ -310,7 +313,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 
-      // Undo / Redo Shortcuts
       if (cmdOrCtrl && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
         if (e.shiftKey) {
@@ -380,7 +382,6 @@ export const Canvas: React.FC<CanvasProps> = ({
     lastScreenPos.current = { x: screenX, y: screenY };
     isInteracting.current = true;
 
-    // Pan interaction
     if (isSpacePressed.current || e.button === 1 || activeTool === 'pan') {
       isMiddlePanning.current = true;
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -388,6 +389,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     const worldPos = screenToWorld({ x: screenX, y: screenY }, transform);
+    updateCursor(worldPos, activeTool);
 
     if (activeTool === 'select') {
       const hit = [...elements].reverse().find((el) => isPointInsideElement(worldPos, el));
@@ -426,7 +428,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       return;
     }
 
-    // Drawing Tools: Pen, Rectangle, Ellipse, Line, Arrow
     if (activeTool === 'pen') {
       activeDraft.current = {
         type: 'pen',
@@ -464,6 +465,9 @@ export const Canvas: React.FC<CanvasProps> = ({
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
+    const worldPos = screenToWorld({ x: screenX, y: screenY }, transform);
+    updateCursor(worldPos, activeTool);
+
     if (isMiddlePanning.current) {
       const dx = screenX - lastScreenPos.current.x;
       const dy = screenY - lastScreenPos.current.y;
@@ -477,8 +481,6 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     if (!isInteracting.current) return;
-
-    const worldPos = screenToWorld({ x: screenX, y: screenY }, transform);
 
     if (activeTool === 'select' && dragSelectionOffset.current && selectedIds.length > 0) {
       const targetX = worldPos.x - dragSelectionOffset.current.x;
@@ -509,6 +511,11 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
   };
 
+  // Pointer Leave
+  const handlePointerLeave = () => {
+    updateCursor(null, activeTool);
+  };
+
   // Pointer Up
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     isInteracting.current = false;
@@ -518,7 +525,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       return;
     }
 
-    // Commit Drag Move to Yjs as a single atomic transaction
     if (
       activeTool === 'select' &&
       selectedIds.length > 0 &&
@@ -562,7 +568,7 @@ export const Canvas: React.FC<CanvasProps> = ({
           opacity: draft.opacity,
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          createdBy: 'local-user',
+          createdBy: localUser?.clientId || 'local-user',
         };
       } else if (draft.type === 'rectangle' || draft.type === 'ellipse') {
         const width = draft.currentX - draft.startX;
@@ -581,7 +587,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             opacity: draft.opacity,
             createdAt: Date.now(),
             updatedAt: Date.now(),
-            createdBy: 'local-user',
+            createdBy: localUser?.clientId || 'local-user',
           };
         }
       } else if (draft.type === 'line' || draft.type === 'arrow') {
@@ -602,7 +608,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             opacity: draft.opacity,
             createdAt: Date.now(),
             updatedAt: Date.now(),
-            createdBy: 'local-user',
+            createdBy: localUser?.clientId || 'local-user',
           };
         }
       }
@@ -616,7 +622,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
   };
 
-  // Wheel Handler for Infinite Canvas Zoom & Pan
+  // Wheel Handler
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
@@ -654,7 +660,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         fontFamily: styleConfig.fontFamily,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        createdBy: 'local-user',
+        createdBy: localUser?.clientId || 'local-user',
       };
       addElement(newElement);
     }
@@ -689,12 +695,16 @@ export const Canvas: React.FC<CanvasProps> = ({
       onWheel={handleWheel}
       className={`relative w-screen h-screen overflow-hidden bg-canvas-bg select-none ${getCursorClass()}`}
     >
-      {/* Top Header with Undo/Redo & Zoom */}
+      {/* Top Header with Presence & Zoom Controls */}
       <CanvasHeader
         roomName={roomName}
         transform={transform}
         canUndo={canUndo}
         canRedo={canRedo}
+        connectionStatus={connectionStatus}
+        localUser={localUser}
+        peers={peers}
+        peerCount={peerCount}
         onUndo={undo}
         onRedo={redo}
         onZoomIn={() => handleZoom(1.2)}
@@ -717,12 +727,19 @@ export const Canvas: React.FC<CanvasProps> = ({
         className="absolute inset-0 block pointer-events-none"
       />
 
+      {/* Smooth Multiplayer Cursors Overlay */}
+      <MultiplayerCursors
+        peers={peers}
+        transform={transform}
+      />
+
       {/* Interactive Draft Canvas (Receives Pointer Events) */}
       <canvas
         ref={draftCanvasRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
         className="absolute inset-0 block touch-none pointer-events-auto"
       />
 
