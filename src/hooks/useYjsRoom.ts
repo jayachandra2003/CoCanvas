@@ -3,12 +3,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
+import { IndexeddbPersistence } from 'y-indexeddb';
 import { CanvasElement, ToolType, Point } from '@/types/canvas';
 import {
   UserPresenceData,
   PeerAwarenessState,
   ConnectionStatus,
 } from '@/types/presence';
+import {
+  saveRoomSnapshotToFirestore,
+  loadRoomSnapshotFromFirestore,
+} from '@/lib/firebase';
 
 export const USER_COLORS = [
   '#3B82F6', // Blue
@@ -51,6 +56,7 @@ export interface UseYjsRoomReturn {
   peers: PeerAwarenessState[];
   connectionStatus: ConnectionStatus;
   peerCount: number;
+  isIndexedDbSynced: boolean;
   addElement: (element: CanvasElement) => void;
   updateElement: (id: string, partial: Partial<CanvasElement>) => void;
   deleteElement: (id: string) => void;
@@ -69,14 +75,17 @@ export function useYjsRoom(
 ): UseYjsRoomReturn {
   const docRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebrtcProvider | null>(null);
+  const idbRef = useRef<IndexeddbPersistence | null>(null);
   const elementsMapRef = useRef<Y.Map<CanvasElement> | null>(null);
   const undoManagerRef = useRef<Y.UndoManager | null>(null);
   const localUserRef = useRef<UserPresenceData | null>(null);
+  const snapshotDebounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   const [elements, setElements] = useState<CanvasElement[]>(initialElements);
   const [peers, setPeers] = useState<PeerAwarenessState[]>([]);
   const [peerCount, setPeerCount] = useState<number>(1);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+  const [isIndexedDbSynced, setIsIndexedDbSynced] = useState<boolean>(false);
   const [canUndo, setCanUndo] = useState<boolean>(false);
   const [canRedo, setCanRedo] = useState<boolean>(false);
 
@@ -116,8 +125,28 @@ export function useYjsRoom(
     const localUser = localUserRef.current;
     if (!doc || !elementsMap || !undoManager || !localUser) return;
 
-    // Connect WebRTC Provider
-    const provider = new WebrtcProvider(`collab-canvas-${roomId}`, doc, {
+    const roomName = `collab-canvas-${roomId}`;
+
+    // 1. Initialize Local-First IndexedDB Persistence
+    const idbProvider = new IndexeddbPersistence(roomName, doc);
+    idbRef.current = idbProvider;
+
+    idbProvider.on('synced', () => {
+      setIsIndexedDbSynced(true);
+      syncElementsFromMap();
+
+      // If document is still empty after loading IndexedDB, check Firestore snapshot for zero-peer rehydration
+      if (elementsMap.size === 0) {
+        loadRoomSnapshotFromFirestore(roomId).then((snapshot) => {
+          if (snapshot && elementsMap.size === 0) {
+            Y.applyUpdate(doc, snapshot, 'firestore-rehydration');
+          }
+        });
+      }
+    });
+
+    // 2. Initialize Decentralized WebRTC Transport
+    const provider = new WebrtcProvider(roomName, doc, {
       signaling: SIGNALING_SERVERS,
     });
     providerRef.current = provider;
@@ -168,18 +197,35 @@ export function useYjsRoom(
       setPeerCount(states.size);
     };
 
-    // Listen for connection status
+    // Connection status handlers
     const handleStatus = (event: { connected: boolean }) => {
-      if (event.connected) {
+      if (!navigator.onLine) {
+        setConnectionStatus('offline');
+      } else if (event.connected) {
         setConnectionStatus('connected');
       } else {
         setConnectionStatus('connecting');
       }
     };
 
-    // Listen for peer connection updates
-    const handlePeers = () => {
-      handleAwarenessChange();
+    // Online/Offline Browser Event Handlers
+    const handleBrowserOnline = () => {
+      setConnectionStatus('connected');
+    };
+
+    const handleBrowserOffline = () => {
+      setConnectionStatus('offline');
+    };
+
+    // Debounced Firestore snapshot writing
+    const handleDocUpdate = () => {
+      if (snapshotDebounceTimer.current) {
+        clearTimeout(snapshotDebounceTimer.current);
+      }
+      snapshotDebounceTimer.current = setTimeout(() => {
+        const updateBinary = Y.encodeStateAsUpdate(doc);
+        saveRoomSnapshotToFirestore(roomId, updateBinary);
+      }, 3000);
     };
 
     syncElementsFromMap();
@@ -187,26 +233,36 @@ export function useYjsRoom(
     handleAwarenessChange();
 
     elementsMap.observe(syncElementsFromMap);
+    doc.on('update', handleDocUpdate);
     undoManager.on('stack-item-added', updateUndoRedoState);
     undoManager.on('stack-item-popped', updateUndoRedoState);
     undoManager.on('stack-cleared', updateUndoRedoState);
 
     provider.awareness.on('change', handleAwarenessChange);
     provider.on('status', handleStatus);
-    provider.on('peers', handlePeers);
+    provider.on('peers', handleAwarenessChange);
 
-    // Default status to connected once provider is up
-    setConnectionStatus('connected');
+    window.addEventListener('online', handleBrowserOnline);
+    window.addEventListener('offline', handleBrowserOffline);
+
+    setConnectionStatus(navigator.onLine ? 'connected' : 'offline');
 
     return () => {
+      if (snapshotDebounceTimer.current) {
+        clearTimeout(snapshotDebounceTimer.current);
+      }
       elementsMap.unobserve(syncElementsFromMap);
+      doc.off('update', handleDocUpdate);
       undoManager.off('stack-item-added', updateUndoRedoState);
       undoManager.off('stack-item-popped', updateUndoRedoState);
       undoManager.off('stack-cleared', updateUndoRedoState);
       provider.awareness.off('change', handleAwarenessChange);
       provider.off('status', handleStatus);
-      provider.off('peers', handlePeers);
+      provider.off('peers', handleAwarenessChange);
+      window.removeEventListener('online', handleBrowserOnline);
+      window.removeEventListener('offline', handleBrowserOffline);
       provider.destroy();
+      idbProvider.destroy();
     };
   }, [roomId]);
 
@@ -298,6 +354,7 @@ export function useYjsRoom(
     peers,
     peerCount,
     connectionStatus,
+    isIndexedDbSynced,
     addElement,
     updateElement,
     deleteElement,

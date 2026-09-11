@@ -27,6 +27,7 @@ import { StylePopover } from '../toolbar/StylePopover';
 import { CanvasHeader } from '../header/CanvasHeader';
 import { TextEditorOverlay } from './TextEditorOverlay';
 import { MultiplayerCursors } from './MultiplayerCursors';
+import { OfflineBanner } from './OfflineBanner';
 
 interface CanvasProps {
   roomId?: string;
@@ -51,6 +52,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     peers,
     peerCount,
     connectionStatus,
+    isIndexedDbSynced,
     addElement,
     updateElement,
     deleteElement,
@@ -697,6 +699,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     >
       {/* Top Header with Presence & Zoom Controls */}
       <CanvasHeader
+        roomId={roomId}
         roomName={roomName}
         transform={transform}
         canUndo={canUndo}
@@ -712,6 +715,12 @@ export const Canvas: React.FC<CanvasProps> = ({
         onResetZoom={handleResetZoom}
         onZoomToFit={handleZoomToFit}
         onExportPng={handleExportPng}
+      />
+
+      {/* Offline Status Alert Banner */}
+      <OfflineBanner
+        status={connectionStatus}
+        isIndexedDbSynced={isIndexedDbSynced}
       />
 
       {/* Floating Style Popover */}
