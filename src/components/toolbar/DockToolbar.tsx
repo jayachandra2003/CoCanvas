@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { motion } from 'framer-motion';
 import {
   MousePointer,
   Hand,
@@ -49,13 +50,23 @@ export const DockToolbar: React.FC<DockToolbarProps> = ({
             title={`${tool.label} (${tool.shortcut})`}
             className={`relative flex items-center justify-center w-10 h-10 rounded-xl text-sm transition-colors duration-150 ${
               isActive
-                ? 'bg-accent-blue/20 text-accent-blue font-medium'
+                ? 'text-accent-blue font-medium'
                 : 'text-surface-200/70 hover:text-surface-100 hover:bg-surface-800'
             }`}
           >
-            <Icon className="w-4 h-4" />
+            {/* Framer Motion Active Indicator Pill */}
             {isActive && (
-              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-accent-blue" />
+              <motion.div
+                layoutId="active-tool-dock-pill"
+                className="absolute inset-0 rounded-xl bg-accent-blue/20 border border-accent-blue/30"
+                transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+              />
+            )}
+
+            <Icon className="w-4 h-4 relative z-10" />
+
+            {isActive && (
+              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-accent-blue z-10" />
             )}
           </button>
         );

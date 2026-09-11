@@ -28,6 +28,7 @@ import { CanvasHeader } from '../header/CanvasHeader';
 import { TextEditorOverlay } from './TextEditorOverlay';
 import { MultiplayerCursors } from './MultiplayerCursors';
 import { OfflineBanner } from './OfflineBanner';
+import { EmptyStateHint } from './EmptyStateHint';
 
 interface CanvasProps {
   roomId?: string;
@@ -776,6 +777,9 @@ export const Canvas: React.FC<CanvasProps> = ({
           }
         }}
       />
+
+      {/* Subtle Empty State Onboarding */}
+      <EmptyStateHint isVisible={elements.length === 0} />
     </div>
   );
 };

@@ -9,10 +9,12 @@ import {
   Download,
   Maximize2,
   Share2,
+  Keyboard,
 } from 'lucide-react';
 import { ViewportTransform } from '@/types/canvas';
 import { PeerAwarenessState, ConnectionStatus, UserPresenceData } from '@/types/presence';
 import { ShareModal } from './ShareModal';
+import { ShortcutsModal } from './ShortcutsModal';
 
 interface CanvasHeaderProps {
   roomId?: string;
@@ -52,6 +54,7 @@ export const CanvasHeader: React.FC<CanvasHeaderProps> = ({
   onExportPng,
 }) => {
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const zoomPercentage = Math.round(transform.scale * 100);
 
   const getStatusColor = () => {
@@ -126,14 +129,14 @@ export const CanvasHeader: React.FC<CanvasHeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Presence Avatars, Share, Zoom & Export Controls */}
+        {/* Right: Presence Avatars, Shortcuts, Share, Zoom & Export Controls */}
         <div className="flex items-center gap-2 pointer-events-auto">
           {/* User Avatars Stack */}
           <div className="flex items-center -space-x-2 p-1 px-2 rounded-2xl bg-surface-900/90 backdrop-blur-md border border-border-muted shadow-dock">
             {localUser && (
               <div
                 title={`${localUser.name} (You)`}
-                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-surface-900"
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-surface-900 shadow-sm"
                 style={{ backgroundColor: localUser.color }}
               >
                 {localUser.name.charAt(0)}
@@ -143,18 +146,28 @@ export const CanvasHeader: React.FC<CanvasHeaderProps> = ({
               <div
                 key={`${peer.user.clientId}-${idx}`}
                 title={peer.user.name}
-                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-surface-900"
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-surface-900 shadow-sm"
                 style={{ backgroundColor: peer.user.color }}
               >
                 {peer.user.name.charAt(0)}
               </div>
             ))}
             {peers.length > 4 && (
-              <div className="w-6 h-6 rounded-full bg-surface-800 border border-border-muted flex items-center justify-center text-[9px] font-mono text-surface-200 ring-2 ring-surface-900">
+              <div className="w-6 h-6 rounded-full bg-surface-800 border border-border-muted flex items-center justify-center text-[9px] font-mono text-surface-200 ring-2 ring-surface-900 shadow-sm">
                 +{peers.length - 4}
               </div>
             )}
           </div>
+
+          {/* Keyboard Shortcuts Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsShortcutsOpen(true)}
+            title="Keyboard Shortcuts (?)"
+            className="p-2 rounded-2xl bg-surface-900/90 backdrop-blur-md border border-border-muted shadow-dock text-surface-200/70 hover:text-surface-100 hover:bg-surface-800 transition-colors"
+          >
+            <Keyboard className="w-4 h-4" />
+          </button>
 
           {/* Share Button */}
           <button
@@ -224,6 +237,12 @@ export const CanvasHeader: React.FC<CanvasHeaderProps> = ({
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
         roomId={roomId}
+      />
+
+      {/* Keyboard Shortcuts Dialog */}
+      <ShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
       />
     </>
   );
