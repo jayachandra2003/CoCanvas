@@ -44,7 +44,7 @@ export function getRandomUser(): UserPresenceData {
   return { clientId, name: randomName, color: randomColor };
 }
 
-// Active and responsive WebRTC signaling servers with local and public fallback
+// Active and verified WebRTC signaling servers
 const DEFAULT_SIGNALING_SERVERS = [
   'wss://y-webrtc-signaling.fly.dev',
   'wss://webrtc-signaling.fly.dev',
@@ -77,7 +77,6 @@ export function useYjsRoom(
   roomId: string = 'default-room',
   initialElements: CanvasElement[] = []
 ): UseYjsRoomReturn {
-  // Instance references scoped to the active roomId
   const docRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebrtcProvider | null>(null);
   const idbRef = useRef<IndexeddbPersistence | null>(null);
@@ -95,7 +94,7 @@ export function useYjsRoom(
   const [canRedo, setCanRedo] = useState<boolean>(false);
   const [yjsClientId, setYjsClientId] = useState<number>(0);
 
-  // Initialize Persistent Local User Identity
+  // Initialize Local User Identity
   if (!localUserRef.current) {
     if (typeof window !== 'undefined') {
       try {
@@ -135,6 +134,23 @@ export function useYjsRoom(
 
     const roomName = `collab-room-${roomId.trim().toLowerCase()}`;
 
+    // Sync elements from Y.Map to React state
+    const syncElementsFromMap = () => {
+      const arr: CanvasElement[] = [];
+      elementsMap.forEach((val) => {
+        if (!val.isDeleted) {
+          arr.push({ ...val });
+        }
+      });
+      arr.sort((a, b) => a.createdAt - b.createdAt);
+      setElements([...arr]);
+    };
+
+    const updateUndoRedoState = () => {
+      setCanUndo(undoManager.undoStack.length > 0);
+      setCanRedo(undoManager.redoStack.length > 0);
+    };
+
     // 2. Initialize Local-First IndexedDB Persistence
     let idbProvider: IndexeddbPersistence | null = null;
     if (typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
@@ -145,11 +161,11 @@ export function useYjsRoom(
         setIsIndexedDbSynced(true);
         syncElementsFromMap();
 
-        // If doc is empty after IndexedDB load, attempt Firestore snapshot rehydration
         if (elementsMap.size === 0) {
           loadRoomSnapshotFromFirestore(roomId).then((snapshot) => {
             if (snapshot && elementsMap.size === 0) {
               Y.applyUpdate(doc, snapshot, 'firestore-rehydration');
+              syncElementsFromMap();
             }
           });
         }
@@ -163,6 +179,17 @@ export function useYjsRoom(
 
     const provider = new WebrtcProvider(roomName, doc, {
       signaling: customSignaling,
+      filterBcConns: false,
+      peerOpts: {
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+          ],
+        },
+      },
     });
     providerRef.current = provider;
 
@@ -174,23 +201,6 @@ export function useYjsRoom(
       selectedElementIds: [],
       lastActive: Date.now(),
     });
-
-    // Sync elements to React state
-    const syncElementsFromMap = () => {
-      const arr: CanvasElement[] = [];
-      elementsMap.forEach((val) => {
-        if (!val.isDeleted) {
-          arr.push(val);
-        }
-      });
-      arr.sort((a, b) => a.createdAt - b.createdAt);
-      setElements(arr);
-    };
-
-    const updateUndoRedoState = () => {
-      setCanUndo(undoManager.undoStack.length > 0);
-      setCanRedo(undoManager.redoStack.length > 0);
-    };
 
     // Update awareness peers
     const handleAwarenessChange = () => {
@@ -233,8 +243,11 @@ export function useYjsRoom(
       setConnectionStatus('offline');
     };
 
-    // Debounced Firestore snapshot writing
+    // On any document update (local or remote), sync state and debounce snapshot
     const handleDocUpdate = () => {
+      syncElementsFromMap();
+      updateUndoRedoState();
+
       if (snapshotDebounceTimer.current) {
         clearTimeout(snapshotDebounceTimer.current);
       }

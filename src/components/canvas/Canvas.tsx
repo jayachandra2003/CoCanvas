@@ -116,6 +116,9 @@ export const Canvas: React.FC<CanvasProps> = ({
     const width = canvas.width / dpr;
     const height = canvas.height / dpr;
 
+    // Reset and apply device pixel ratio cleanly
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
     // Render Background Grid
     renderGrid(ctx, width, height, transform);
 
@@ -178,6 +181,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     const width = canvas.width / dpr;
     const height = canvas.height / dpr;
 
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
     if (activeDraft.current) {
@@ -204,25 +208,27 @@ export const Canvas: React.FC<CanvasProps> = ({
     baseCanvas.height = height * dpr;
     baseCanvas.style.width = `${width}px`;
     baseCanvas.style.height = `${height}px`;
-    const baseCtx = baseCanvas.getContext('2d');
-    if (baseCtx) baseCtx.scale(dpr, dpr);
 
     draftCanvas.width = width * dpr;
     draftCanvas.height = height * dpr;
     draftCanvas.style.width = `${width}px`;
     draftCanvas.style.height = `${height}px`;
-    const draftCtx = draftCanvas.getContext('2d');
-    if (draftCtx) draftCtx.scale(dpr, dpr);
-
-    drawBaseCanvas();
-    drawDraftCanvas();
-  }, [drawBaseCanvas, drawDraftCanvas]);
+  }, []);
 
   useEffect(() => {
     updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
-    return () => window.removeEventListener('resize', updateCanvasSize);
-  }, [updateCanvasSize]);
+    drawBaseCanvas();
+    drawDraftCanvas();
+
+    const handleResize = () => {
+      updateCanvasSize();
+      drawBaseCanvas();
+      drawDraftCanvas();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateCanvasSize, drawBaseCanvas, drawDraftCanvas]);
 
   useEffect(() => {
     drawBaseCanvas();
