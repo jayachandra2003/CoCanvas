@@ -11,7 +11,6 @@ import {
 } from '@/types/canvas';
 import {
   screenToWorld,
-  worldToScreen,
   isPointInsideElement,
   getElementBounds,
 } from '@/lib/math';
@@ -22,28 +21,40 @@ import {
   renderSelectionOverlay,
   exportCanvasAsBlob,
 } from '@/lib/renderer';
+import { useCanvasDoc } from '@/hooks/useCanvasDoc';
 import { DockToolbar } from '../toolbar/DockToolbar';
 import { StylePopover } from '../toolbar/StylePopover';
 import { CanvasHeader } from '../header/CanvasHeader';
 import { TextEditorOverlay } from './TextEditorOverlay';
 
 interface CanvasProps {
-  initialElements?: CanvasElement[];
-  onElementsChange?: (elements: CanvasElement[]) => void;
   roomName?: string;
+  initialElements?: CanvasElement[];
 }
 
 export const Canvas: React.FC<CanvasProps> = ({
-  initialElements = [],
-  onElementsChange,
   roomName = 'CollabCanvas Studio',
+  initialElements = [],
 }) => {
   // Main canvas and overlay canvas refs
   const baseCanvasRef = useRef<HTMLCanvasElement>(null);
   const draftCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Canvas Viewport & Tool State
+  // Yjs Doc & Local Undo/Redo Engine
+  const {
+    elements,
+    addElement,
+    updateElement,
+    deleteElement,
+    deleteElements,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useCanvasDoc(initialElements);
+
+  // Viewport & Tool State
   const [transform, setTransform] = useState<ViewportTransform>({
     x: 0,
     y: 0,
@@ -59,11 +70,12 @@ export const Canvas: React.FC<CanvasProps> = ({
     fontFamily: 'Inter, sans-serif',
   });
 
-  // Elements & Selection State
-  const [elements, setElements] = useState<CanvasElement[]>(initialElements);
+  // Selection & Drag State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const dragStartElementPos = useRef<Point | null>(null);
+  const dragCurrentElementPos = useRef<Point | null>(null);
 
-  // Pointer Interaction State (stored in ref for zero-latency frame loop)
+  // Pointer Interaction State
   const isInteracting = useRef(false);
   const isSpacePressed = useRef(false);
   const isMiddlePanning = useRef(false);
@@ -77,18 +89,6 @@ export const Canvas: React.FC<CanvasProps> = ({
     initialText: string;
     elementId?: string;
   } | null>(null);
-
-  // Sync elements update callback
-  const updateElements = useCallback(
-    (newElements: CanvasElement[] | ((prev: CanvasElement[]) => CanvasElement[])) => {
-      setElements((prev) => {
-        const next = typeof newElements === 'function' ? newElements(prev) : newElements;
-        if (onElementsChange) onElementsChange(next);
-        return next;
-      });
-    },
-    [onElementsChange]
-  );
 
   // Render Base Canvas (Grid + Committed Elements + Selection Overlay)
   const drawBaseCanvas = useCallback(() => {
@@ -109,13 +109,40 @@ export const Canvas: React.FC<CanvasProps> = ({
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
 
-    // Render Elements
+    // Render Committed Elements (substituting dragged position if actively moving)
     for (const el of elements) {
-      renderElement(ctx, el);
+      if (el.isDeleted) continue;
+
+      if (
+        selectedIds.includes(el.id) &&
+        dragCurrentElementPos.current &&
+        dragStartElementPos.current
+      ) {
+        // Draw temporarily translated element
+        renderElement(ctx, {
+          ...el,
+          x: dragCurrentElementPos.current.x,
+          y: dragCurrentElementPos.current.y,
+        });
+      } else {
+        renderElement(ctx, el);
+      }
     }
 
     // Render Selection Outline
-    const selectedElements = elements.filter((el) => selectedIds.includes(el.id));
+    const selectedElements = elements
+      .filter((el) => selectedIds.includes(el.id) && !el.isDeleted)
+      .map((el) => {
+        if (dragCurrentElementPos.current && selectedIds.includes(el.id)) {
+          return {
+            ...el,
+            x: dragCurrentElementPos.current.x,
+            y: dragCurrentElementPos.current.y,
+          };
+        }
+        return el;
+      });
+
     if (selectedElements.length > 0) {
       renderSelectionOverlay(ctx, selectedElements, '#3B82F6');
     }
@@ -266,14 +293,34 @@ export const Canvas: React.FC<CanvasProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Keyboard Shortcuts Handler
+  // Keyboard Shortcuts Handler (including Undo/Redo)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept shortcuts when user is typing in text overlay
+      // Don't intercept shortcuts when typing in inputs/textareas
       if (
         document.activeElement?.tagName === 'INPUT' ||
         document.activeElement?.tagName === 'TEXTAREA'
       ) {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+      // Undo / Redo Shortcuts
+      if (cmdOrCtrl && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        return;
+      }
+
+      if (cmdOrCtrl && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        redo();
         return;
       }
 
@@ -299,12 +346,10 @@ export const Canvas: React.FC<CanvasProps> = ({
         setActiveTool('eraser');
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedIds.length > 0) {
-          updateElements((prev) =>
-            prev.filter((el) => !selectedIds.includes(el.id))
-          );
+          deleteElements(selectedIds);
           setSelectedIds([]);
         }
-      } else if ((e.metaKey || e.ctrlKey) && e.key === '0') {
+      } else if (cmdOrCtrl && e.key === '0') {
         e.preventDefault();
         handleResetZoom();
       }
@@ -322,9 +367,9 @@ export const Canvas: React.FC<CanvasProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedIds, updateElements, handleResetZoom]);
+  }, [selectedIds, undo, redo, deleteElements, handleResetZoom]);
 
-  // Pointer Event Handlers
+  // Pointer Down
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
@@ -332,7 +377,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     lastScreenPos.current = { x: screenX, y: screenY };
     isInteracting.current = true;
 
-    // Check for Panning (Space + click, Middle mouse, or Pan tool)
+    // Pan interaction
     if (isSpacePressed.current || e.button === 1 || activeTool === 'pan') {
       isMiddlePanning.current = true;
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -342,16 +387,19 @@ export const Canvas: React.FC<CanvasProps> = ({
     const worldPos = screenToWorld({ x: screenX, y: screenY }, transform);
 
     if (activeTool === 'select') {
-      // Hit test existing elements (in reverse order for top-most element)
       const hit = [...elements].reverse().find((el) => isPointInsideElement(worldPos, el));
       if (hit) {
         setSelectedIds([hit.id]);
+        dragStartElementPos.current = { x: hit.x, y: hit.y };
+        dragCurrentElementPos.current = { x: hit.x, y: hit.y };
         dragSelectionOffset.current = {
           x: worldPos.x - hit.x,
           y: worldPos.y - hit.y,
         };
       } else {
         setSelectedIds([]);
+        dragStartElementPos.current = null;
+        dragCurrentElementPos.current = null;
         dragSelectionOffset.current = null;
       }
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -359,17 +407,15 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
 
     if (activeTool === 'eraser') {
-      // Object eraser: delete element hit by pointer down
       const hit = [...elements].reverse().find((el) => isPointInsideElement(worldPos, el));
       if (hit) {
-        updateElements((prev) => prev.filter((el) => el.id !== hit.id));
+        deleteElement(hit.id);
       }
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
     }
 
     if (activeTool === 'text') {
-      // Trigger inline text editor
       setTextEditor({
         worldPos,
         initialText: '',
@@ -409,6 +455,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
+  // Pointer Move
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
@@ -431,31 +478,17 @@ export const Canvas: React.FC<CanvasProps> = ({
     const worldPos = screenToWorld({ x: screenX, y: screenY }, transform);
 
     if (activeTool === 'select' && dragSelectionOffset.current && selectedIds.length > 0) {
-      // Drag selected element
-      const selectedId = selectedIds[0];
       const targetX = worldPos.x - dragSelectionOffset.current.x;
       const targetY = worldPos.y - dragSelectionOffset.current.y;
-
-      updateElements((prev) =>
-        prev.map((el) => {
-          if (el.id === selectedId) {
-            return {
-              ...el,
-              x: targetX,
-              y: targetY,
-              updatedAt: Date.now(),
-            };
-          }
-          return el;
-        })
-      );
+      dragCurrentElementPos.current = { x: targetX, y: targetY };
+      drawBaseCanvas();
       return;
     }
 
     if (activeTool === 'eraser') {
       const hit = [...elements].reverse().find((el) => isPointInsideElement(worldPos, el));
       if (hit) {
-        updateElements((prev) => prev.filter((el) => el.id !== hit.id));
+        deleteElement(hit.id);
       }
       return;
     }
@@ -473,6 +506,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
   };
 
+  // Pointer Up
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     isInteracting.current = false;
 
@@ -481,8 +515,29 @@ export const Canvas: React.FC<CanvasProps> = ({
       return;
     }
 
-    if (dragSelectionOffset.current) {
+    // Commit Drag Move to Yjs as a single atomic transaction
+    if (
+      activeTool === 'select' &&
+      selectedIds.length > 0 &&
+      dragCurrentElementPos.current &&
+      dragStartElementPos.current
+    ) {
+      const selectedId = selectedIds[0];
+      const movedX = dragCurrentElementPos.current.x;
+      const movedY = dragCurrentElementPos.current.y;
+
+      if (
+        movedX !== dragStartElementPos.current.x ||
+        movedY !== dragStartElementPos.current.y
+      ) {
+        updateElement(selectedId, { x: movedX, y: movedY });
+      }
+
+      dragStartElementPos.current = null;
+      dragCurrentElementPos.current = null;
       dragSelectionOffset.current = null;
+      drawBaseCanvas();
+      return;
     }
 
     if (activeDraft.current) {
@@ -550,7 +605,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       }
 
       if (newElement) {
-        updateElements((prev) => [...prev, newElement]);
+        addElement(newElement);
       }
 
       activeDraft.current = null;
@@ -558,7 +613,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
   };
 
-  // Wheel Handler for Infinite Canvas Zoom & Trackpad Pan
+  // Wheel Handler for Infinite Canvas Zoom & Pan
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
@@ -568,11 +623,9 @@ export const Canvas: React.FC<CanvasProps> = ({
     };
 
     if (e.ctrlKey || e.metaKey) {
-      // Zoom with wheel or pinch
       const factor = Math.pow(0.995, e.deltaY);
       handleZoom(factor, focalPoint);
     } else {
-      // Trackpad 2-finger pan or regular wheel pan
       setTransform((prev) => ({
         ...prev,
         x: prev.x - e.deltaX,
@@ -600,12 +653,11 @@ export const Canvas: React.FC<CanvasProps> = ({
         updatedAt: Date.now(),
         createdBy: 'local-user',
       };
-      updateElements((prev) => [...prev, newElement]);
+      addElement(newElement);
     }
     setTextEditor(null);
   };
 
-  // Determine mouse cursor style based on active tool
   const getCursorClass = () => {
     if (isSpacePressed.current || isMiddlePanning.current || activeTool === 'pan') {
       return 'cursor-grab active:cursor-grabbing';
@@ -634,10 +686,14 @@ export const Canvas: React.FC<CanvasProps> = ({
       onWheel={handleWheel}
       className={`relative w-screen h-screen overflow-hidden bg-canvas-bg select-none ${getCursorClass()}`}
     >
-      {/* Top Header */}
+      {/* Top Header with Undo/Redo & Zoom */}
       <CanvasHeader
         roomName={roomName}
         transform={transform}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
         onZoomIn={() => handleZoom(1.2)}
         onZoomOut={() => handleZoom(0.8)}
         onResetZoom={handleResetZoom}

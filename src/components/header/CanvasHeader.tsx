@@ -1,12 +1,23 @@
 'use client';
 
 import React from 'react';
-import { ZoomIn, ZoomOut, RotateCcw, Download, Maximize2 } from 'lucide-react';
+import {
+  ZoomIn,
+  ZoomOut,
+  Undo2,
+  Redo2,
+  Download,
+  Maximize2,
+} from 'lucide-react';
 import { ViewportTransform } from '@/types/canvas';
 
 interface CanvasHeaderProps {
   roomName?: string;
   transform: ViewportTransform;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
@@ -17,6 +28,10 @@ interface CanvasHeaderProps {
 export const CanvasHeader: React.FC<CanvasHeaderProps> = ({
   roomName = 'Untitled Board',
   transform,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
   onZoomIn,
   onZoomOut,
   onResetZoom,
@@ -27,15 +42,48 @@ export const CanvasHeader: React.FC<CanvasHeaderProps> = ({
 
   return (
     <header className="fixed top-4 left-4 right-4 z-30 flex items-center justify-between pointer-events-none">
-      {/* Left: Room Title & Badge */}
-      <div className="flex items-center gap-3 p-1.5 px-3 rounded-2xl bg-surface-900/90 backdrop-blur-md border border-border-muted shadow-dock pointer-events-auto">
-        <span className="text-xs font-semibold tracking-tight text-surface-100">
-          {roomName}
-        </span>
-        <span className="w-1 h-1 rounded-full bg-border-muted" />
-        <span className="text-[11px] text-surface-200/50 font-mono">
-          Phase 2 Core
-        </span>
+      {/* Left: Room Title & Undo/Redo */}
+      <div className="flex items-center gap-2 pointer-events-auto">
+        {/* Title */}
+        <div className="flex items-center gap-2.5 p-1.5 px-3 rounded-2xl bg-surface-900/90 backdrop-blur-md border border-border-muted shadow-dock">
+          <span className="text-xs font-semibold tracking-tight text-surface-100">
+            {roomName}
+          </span>
+          <span className="w-1 h-1 rounded-full bg-border-muted" />
+          <span className="text-[11px] text-surface-200/50 font-mono">
+            Phase 3
+          </span>
+        </div>
+
+        {/* Undo / Redo buttons */}
+        <div className="flex items-center gap-1 p-1 rounded-2xl bg-surface-900/90 backdrop-blur-md border border-border-muted shadow-dock">
+          <button
+            type="button"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Undo (Ctrl+Z)"
+            className={`p-1.5 rounded-xl transition-colors ${
+              canUndo
+                ? 'text-surface-100 hover:bg-surface-800'
+                : 'text-surface-200/30 cursor-not-allowed'
+            }`}
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
+            className={`p-1.5 rounded-xl transition-colors ${
+              canRedo
+                ? 'text-surface-100 hover:bg-surface-800'
+                : 'text-surface-200/30 cursor-not-allowed'
+            }`}
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Right: Zoom & Export Controls */}
