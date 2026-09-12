@@ -4423,9 +4423,10 @@
           showToast(state.roomMode === 'host' ? '🎓 Room is in Presentation Mode (Controlled by Host)' : '🤝 Friendly Mode: Everyone can draw', 'info');
           return;
         }
-        const isOpen = roomModeWrapper && roomModeWrapper.classList.contains('active');
+        const parent = roomModeBtn.closest('.dropdown-wrapper') || roomModeWrapper;
+        const isOpen = parent && parent.classList.contains('active');
         dismissAllPopovers();
-        if (!isOpen && roomModeWrapper) roomModeWrapper.classList.add('active');
+        if (!isOpen && parent) parent.classList.add('active');
         sound.playClick();
       });
     }
@@ -4469,10 +4470,10 @@
           showToast('🎓 Presentation Mode: Only Host can draw.', 'warning');
           return;
         }
-        const parent = brushPopoverBtn.parentElement;
-        const isOpen = parent.classList.contains('open');
+        const parent = brushPopoverBtn.closest('.popover-container');
+        const isOpen = parent ? parent.classList.contains('open') : false;
         dismissAllPopovers();
-        if (!isOpen) {
+        if (!isOpen && parent) {
           parent.classList.add('open');
           syncBrushSizeUI();
         }
@@ -4550,10 +4551,10 @@
         }
         state.activeTool = 'eraser';
         updateActiveToolUI();
-        const parent = eraserPopoverBtn.parentElement;
-        const isOpen = parent.classList.contains('open');
+        const parent = eraserPopoverBtn.closest('.popover-container');
+        const isOpen = parent ? parent.classList.contains('open') : false;
         dismissAllPopovers();
-        if (!isOpen) {
+        if (!isOpen && parent) {
           parent.classList.add('open');
           syncEraserSizeUI();
         }
@@ -4597,47 +4598,53 @@
       });
     }
 
-    shapePopoverBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (!canCurrentUserDraw()) {
-        showToast('🎓 Presentation Mode: Only Host can draw shapes.', 'warning');
-        return;
-      }
-      const parent = shapePopoverBtn.parentElement;
-      const isOpen = parent.classList.contains('open');
-      dismissAllPopovers();
-      if (!isOpen) parent.classList.add('open');
-      sound.playClick();
-    });
-
-    shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((item) => {
-      item.addEventListener('click', (e) => {
+    if (shapePopoverBtn) {
+      shapePopoverBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (!canCurrentUserDraw()) {
-          showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+          showToast('🎓 Presentation Mode: Only Host can draw shapes.', 'warning');
           return;
         }
-        const tool = item.dataset.tool;
-        state.activeTool = tool;
-        shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((i) => i.classList.remove('active'));
-        item.classList.add('active');
-        const svg = item.querySelector('svg');
-        if (svg) activeShapeIcon.innerHTML = svg.outerHTML;
-        shapePopoverBtn.dataset.tool = tool;
-        updateActiveToolUI();
+        const parent = shapePopoverBtn.closest('.popover-container');
+        const isOpen = parent ? parent.classList.contains('open') : false;
         dismissAllPopovers();
+        if (!isOpen && parent) parent.classList.add('open');
         sound.playClick();
       });
-    });
+    }
 
-    colorPopoverBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const parent = colorPopoverBtn.parentElement;
-      const isOpen = parent.classList.contains('open');
-      dismissAllPopovers();
-      if (!isOpen) parent.classList.add('open');
-      sound.playClick();
-    });
+    if (shapesPopover) {
+      shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((item) => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!canCurrentUserDraw()) {
+            showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+            return;
+          }
+          const tool = item.dataset.tool;
+          state.activeTool = tool;
+          shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((i) => i.classList.remove('active'));
+          item.classList.add('active');
+          const svg = item.querySelector('svg');
+          if (svg) activeShapeIcon.innerHTML = svg.outerHTML;
+          shapePopoverBtn.dataset.tool = tool;
+          updateActiveToolUI();
+          dismissAllPopovers();
+          sound.playClick();
+        });
+      });
+    }
+
+    if (colorPopoverBtn) {
+      colorPopoverBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const parent = colorPopoverBtn.closest('.popover-container');
+        const isOpen = parent ? parent.classList.contains('open') : false;
+        dismissAllPopovers();
+        if (!isOpen && parent) parent.classList.add('open');
+        sound.playClick();
+      });
+    }
 
     const slot1Btn = document.getElementById('slotColor1');
     const slot2Btn = document.getElementById('slotColor2');
@@ -5334,16 +5341,18 @@
           clearTimeout(reactionHoverCloseTimer);
           reactionHoverCloseTimer = null;
         }
-        if (!reactionPopoverContainer.classList.contains('open')) {
+        if (window.matchMedia('(hover: hover)').matches && !reactionPopoverContainer.classList.contains('open')) {
           dismissAllPopovers();
           reactionPopoverContainer.classList.add('open');
         }
       });
 
       reactionPopoverContainer.addEventListener('mouseleave', () => {
-        reactionHoverCloseTimer = setTimeout(() => {
-          reactionPopoverContainer.classList.remove('open');
-        }, 280);
+        if (window.matchMedia('(hover: hover)').matches) {
+          reactionHoverCloseTimer = setTimeout(() => {
+            reactionPopoverContainer.classList.remove('open');
+          }, 280);
+        }
       });
     }
 
@@ -5368,9 +5377,23 @@
       });
     }
 
+    // Protect all popovers and dropdown menus from click bubbling
+    document.querySelectorAll('.popover-menu, .dropdown-menu').forEach((menu) => {
+      menu.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    });
+
     // Dismiss Popovers on Outside Click
     window.addEventListener('click', (e) => {
-      if (!e.target.closest('.popover-container')) {
+      if (
+        !e.target.closest('.popover-container') &&
+        !e.target.closest('.dropdown-wrapper') &&
+        !e.target.closest('.popover-menu') &&
+        !e.target.closest('.dropdown-menu') &&
+        !e.target.closest('.chat-floating-tab') &&
+        !e.target.closest('.chatspace-panel')
+      ) {
         dismissAllPopovers();
       }
     });
@@ -5415,7 +5438,7 @@
 
   dockButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (btn.id === 'shapePopoverBtn' || btn.id === 'brushPopoverBtn' || btn.id === 'eraserPopoverBtn' || btn.id === 'colorPopoverBtn') return;
+      if (btn.id === 'shapePopoverBtn' || btn.id === 'brushPopoverBtn' || btn.id === 'eraserPopoverBtn' || btn.id === 'colorPopoverBtn' || btn.id === 'reactionPopoverBtn') return;
       const tool = btn.dataset.tool;
       if (tool && tool !== 'select' && tool !== 'laser' && !canCurrentUserDraw()) {
         showToast('🎓 Presentation Mode: Only Host can draw on the canvas.', 'warning');
