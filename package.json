@@ -1,15 +1,30 @@
 {
-  "name": "real-time-collaborative-drawing-canvas",
+  "name": "cocanvas",
   "version": "1.0.0",
-  "description": "",
+  "description": "Professional Real-Time Collaborative Whiteboard & ChatSpace",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "dev": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jayachandra2003/CoCanvas.git"
+  },
+  "homepage": "https://cocanvas-7gef.onrender.com",
+  "keywords": [
+    "whiteboard",
+    "canvas",
+    "realtime",
+    "collaboration",
+    "socketio",
+    "multiplayer",
+    "drawing",
+    "chat"
+  ],
   "author": "Jaya Chandra Vennam",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1",
