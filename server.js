@@ -29,7 +29,9 @@ function getOrCreateRoom(roomId) {
       hostSessionId: null,
       coHostSessionIds: new Set(),
       hostDisconnectTimeout: null,
-      mode: 'friendly' // 'friendly' (all can draw) | 'host' (presentation mode, only hosts can draw)
+      mode: 'friendly', // 'friendly' (all can draw) | 'host' (presentation mode, only hosts can draw)
+      kickCounts: new Map(), // sessionId -> number of times kicked
+      bannedSessionIds: new Set() // Set of banned sessionIds (kicked >= 2 times)
     });
   }
   return rooms.get(roomId);
@@ -65,8 +67,20 @@ io.on('connection', (socket) => {
       }
     }
 
-    currentRoomId = roomId;
+    const room = getOrCreateRoom(roomId);
     const userSessionId = (user && user.sessionId) ? user.sessionId : socket.id;
+
+    // Check if user is banned from this room (kicked 2 or more times)
+    const kickCount = (room.kickCounts && room.kickCounts.get(userSessionId)) || 0;
+    if ((room.bannedSessionIds && room.bannedSessionIds.has(userSessionId)) || kickCount >= 2) {
+      socket.emit('room:banned', {
+        roomId,
+        reason: 'You cannot join this room because you were kicked 2 times by the Host.'
+      });
+      return;
+    }
+
+    currentRoomId = roomId;
 
     currentUser = {
       id: socket.id,
@@ -79,7 +93,6 @@ io.on('connection', (socket) => {
     };
 
     socket.join(roomId);
-    const room = getOrCreateRoom(roomId);
 
     // If there was a pending host disconnect timeout and the host reconnected, cancel it!
     if (room.hostSessionId === userSessionId) {
@@ -208,6 +221,104 @@ io.on('connection', (socket) => {
       targetSessionId,
       isCoHost: !!isCoHost,
       targetName: targetUser ? targetUser.name : 'Teammate'
+    });
+  });
+
+  // Kick User from Room (Primary Host and Co-Host access)
+  socket.on('room:kick_user', ({ targetSessionId, targetSocketId, name }) => {
+    if (!currentRoomId) return;
+    const room = rooms.get(currentRoomId);
+    if (!room) return;
+
+    const requesterSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    const isRequesterPrimary = room.hostSessionId === requesterSessionId;
+    const isRequesterCoHost = !!(room.coHostSessionIds && room.coHostSessionIds.has(requesterSessionId));
+
+    // Only Hosts can kick participants
+    if (!isRequesterPrimary && !isRequesterCoHost) {
+      socket.emit('toast:error', 'You must be a Host to remove members.');
+      return;
+    }
+
+    // Find the target socket and user in this room
+    let targetSocket = null;
+    let targetUser = null;
+    let targetActualSocketId = targetSocketId;
+
+    for (const [sId, u] of room.users.entries()) {
+      if ((targetSessionId && u.sessionId === targetSessionId) || (targetSocketId && sId === targetSocketId)) {
+        targetUser = u;
+        targetActualSocketId = sId;
+        targetSocket = io.sockets.sockets.get(sId);
+        break;
+      }
+    }
+
+    if (!targetUser) return;
+
+    // Protection: Cannot kick self or Primary Host
+    if (targetUser.sessionId === room.hostSessionId) {
+      socket.emit('toast:error', 'Cannot remove the Primary Host.');
+      return;
+    }
+
+    // Protection: Co-hosts cannot kick other Co-hosts
+    if (!isRequesterPrimary && room.coHostSessionIds && room.coHostSessionIds.has(targetUser.sessionId)) {
+      socket.emit('toast:error', 'Co-Hosts cannot remove other Co-Hosts.');
+      return;
+    }
+
+    // Update kick count for target user
+    if (!room.kickCounts) room.kickCounts = new Map();
+    if (!room.bannedSessionIds) room.bannedSessionIds = new Set();
+
+    const previousKicks = room.kickCounts.get(targetUser.sessionId) || 0;
+    const newKickCount = previousKicks + 1;
+    room.kickCounts.set(targetUser.sessionId, newKickCount);
+
+    const isBanned = newKickCount >= 2;
+    if (isBanned) {
+      room.bannedSessionIds.add(targetUser.sessionId);
+    }
+
+    // Remove target from room
+    room.users.delete(targetActualSocketId);
+    if (room.coHostSessionIds) {
+      room.coHostSessionIds.delete(targetUser.sessionId);
+    }
+
+    const kickedUserName = targetUser.name || name || 'Member';
+    const hostName = currentUser ? (currentUser.name || 'Host') : 'Host';
+
+    // Notify kicked client
+    if (targetSocket) {
+      targetSocket.emit('room:kicked', {
+        reason: isBanned
+          ? `You have been kicked 2 times and are permanently banned from room ${currentRoomId}.`
+          : `You were removed from room ${currentRoomId} by ${hostName}. (Warning 1/2: If kicked again, you will be permanently banned from this room).`,
+        by: hostName,
+        isBanned,
+        kickCount: newKickCount
+      });
+      targetSocket.leave(currentRoomId);
+    }
+
+    // Broadcast user departure to remaining room members
+    io.to(currentRoomId).emit('user:left', {
+      socketId: targetActualSocketId,
+      name: kickedUserName,
+      avatar: targetUser.avatar || '👤'
+    });
+
+    io.to(currentRoomId).emit('room:user_kicked_broadcast', {
+      name: kickedUserName,
+      byName: hostName
+    });
+
+    // Also push updated host list if needed
+    io.to(currentRoomId).emit('room:hosts_updated', {
+      hostSessionId: room.hostSessionId,
+      coHostSessionIds: Array.from(room.coHostSessionIds || [])
     });
   });
 

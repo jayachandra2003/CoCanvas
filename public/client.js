@@ -1721,7 +1721,9 @@
 
   // Minimap
   function renderMinimap() {
-    minimapCtx.clearRect(0, 0, 180, 110);
+    const mw = minimapCanvas.width || 165;
+    const mh = minimapCanvas.height || 105;
+    minimapCtx.clearRect(0, 0, mw, mh);
     let minX = -1000, minY = -600, maxX = 1000, maxY = 600;
     state.elements.forEach((el) => {
       const b = getElementBounds(el);
@@ -1733,7 +1735,7 @@
 
     const pad = 400;
     minX -= pad; minY -= pad; maxX += pad; maxY += pad;
-    const miniScale = Math.min(180 / Math.max(100, maxX - minX), 110 / Math.max(100, maxY - minY));
+    const miniScale = Math.min(mw / Math.max(100, maxX - minX), mh / Math.max(100, maxY - minY));
 
     minimapCtx.fillStyle = '#FF6B4A';
     state.elements.forEach((el) => {
@@ -1748,10 +1750,10 @@
     const vw = Math.max(6, (viewWidth / state.zoom) * miniScale);
     const vh = Math.max(6, (viewHeight / state.zoom) * miniScale);
 
-    minimapViewport.style.left = `${Math.max(0, Math.min(180 - vw, vx))}px`;
-    minimapViewport.style.top = `${Math.max(0, Math.min(110 - vh, vy))}px`;
-    minimapViewport.style.width = `${Math.min(180, vw)}px`;
-    minimapViewport.style.height = `${Math.min(110, vh)}px`;
+    minimapViewport.style.left = `${Math.max(0, Math.min(mw - vw, vx))}px`;
+    minimapViewport.style.top = `${Math.max(0, Math.min(mh - vh, vy))}px`;
+    minimapViewport.style.width = `${Math.min(mw, vw)}px`;
+    minimapViewport.style.height = `${Math.min(mh, vh)}px`;
 
     minimapBody.onclick = (e) => {
       const rect = minimapCanvas.getBoundingClientRect();
@@ -1761,10 +1763,14 @@
     };
   }
 
-  minimapToggleBtn.addEventListener('click', () => {
-    minimapPanel.classList.toggle('collapsed');
-    minimapToggleBtn.textContent = minimapPanel.classList.contains('collapsed') ? '▴' : '▾';
-  });
+  const minimapHeader = document.querySelector('.minimap-header');
+  if (minimapHeader) {
+    minimapHeader.addEventListener('click', () => {
+      minimapPanel.classList.toggle('collapsed');
+      minimapToggleBtn.textContent = minimapPanel.classList.contains('collapsed') ? '▴' : '▾';
+      if (typeof playSound === 'function') playSound('pop');
+    });
+  }
 
   function smoothFlyTo(targetWorldX, targetWorldY, targetZoom = state.zoom) {
     const startPanX = state.panX;
@@ -3347,45 +3353,90 @@
       leftCol.appendChild(detailsDiv);
       item.appendChild(leftCol);
 
-      // Right column: Actions (Only visible to Primary Host, and not on self)
-      if (isSelfPrimary && !userItem.isSelf) {
+      // Right column: Actions
+      if (!userItem.isSelf) {
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'host-user-actions';
 
-        // 1. Co-Host Toggle Button
-        const coHostBtn = document.createElement('button');
-        coHostBtn.className = `btn-host-action btn-cohost-toggle ${userItem.isCoHost ? 'active' : ''}`;
-        coHostBtn.innerHTML = userItem.isCoHost ? '<span>⭐ Remove Co-Host</span>' : '<span>⭐ Make Co-Host</span>';
-        coHostBtn.title = userItem.isCoHost ? 'Revoke Co-Host access' : 'Grant Co-Host presentation and draw access';
-        coHostBtn.addEventListener('click', () => {
-          sound.playClick();
-          socket.emit('room:toggle_cohost', {
-            targetSessionId: userItem.sessionId,
-            isCoHost: !userItem.isCoHost
-          });
-        });
-        actionsDiv.appendChild(coHostBtn);
-
-        // 2. Transfer Host Button
-        const transferBtn = document.createElement('button');
-        transferBtn.className = 'btn-host-action btn-transfer-action';
-        transferBtn.innerHTML = '<span>👑 Transfer Host</span>';
-        transferBtn.title = `Transfer full room ownership to ${userItem.rawName}`;
-        transferBtn.addEventListener('click', () => {
-          sound.playClick();
-          const confirmed = window.confirm(
-            `👑 Transfer Room Host Ownership?\n\nAre you sure you want to transfer full Primary Host ownership to "${userItem.rawName}"?\n\nYou will step down to a regular participant.`
-          );
-          if (confirmed) {
-            socket.emit('room:transfer_host', {
-              targetSessionId: userItem.sessionId
-            });
+        // 1. Follow View / Jump to Peer
+        const peerObj = state.collaborators.get(userItem.id);
+        if (peerObj && peerObj.cursor) {
+          const viewBtn = document.createElement('button');
+          viewBtn.className = 'btn-host-action btn-view-peer';
+          viewBtn.innerHTML = '<span>🎯 View</span>';
+          viewBtn.title = `Jump camera to ${userItem.rawName}'s view`;
+          viewBtn.addEventListener('click', () => {
+            sound.playClick();
+            smoothFlyTo(peerObj.cursor.x, peerObj.cursor.y);
+            showToast(`Following ${userItem.rawName}`);
             closeManageHostsModal();
-          }
-        });
-        actionsDiv.appendChild(transferBtn);
+          });
+          actionsDiv.appendChild(viewBtn);
+        }
 
-        item.appendChild(actionsDiv);
+        // 2. Primary Host Actions: Co-Host & Transfer
+        if (isSelfPrimary) {
+          // Co-Host Toggle Button
+          const coHostBtn = document.createElement('button');
+          coHostBtn.className = `btn-host-action btn-cohost-toggle ${userItem.isCoHost ? 'active' : ''}`;
+          coHostBtn.innerHTML = userItem.isCoHost ? '<span>⭐ Remove Co-Host</span>' : '<span>⭐ Co-Host</span>';
+          coHostBtn.title = userItem.isCoHost ? 'Revoke Co-Host access' : 'Grant Co-Host presentation and draw access';
+          coHostBtn.addEventListener('click', () => {
+            sound.playClick();
+            socket.emit('room:toggle_cohost', {
+              targetSessionId: userItem.sessionId,
+              isCoHost: !userItem.isCoHost
+            });
+          });
+          actionsDiv.appendChild(coHostBtn);
+
+          // Transfer Host Button
+          const transferBtn = document.createElement('button');
+          transferBtn.className = 'btn-host-action btn-transfer-action';
+          transferBtn.innerHTML = '<span>👑 Transfer</span>';
+          transferBtn.title = `Transfer full room ownership to ${userItem.rawName}`;
+          transferBtn.addEventListener('click', () => {
+            sound.playClick();
+            const confirmed = window.confirm(
+              `👑 Transfer Room Host Ownership?\n\nAre you sure you want to transfer full Primary Host ownership to "${userItem.rawName}"?\n\nYou will step down to a regular participant.`
+            );
+            if (confirmed) {
+              socket.emit('room:transfer_host', {
+                targetSessionId: userItem.sessionId
+              });
+              closeManageHostsModal();
+            }
+          });
+          actionsDiv.appendChild(transferBtn);
+        }
+
+        // 3. Host Kick Action (Primary Host or Co-Host)
+        const canKick = isSelfPrimary || (isSelfCoHost && !userItem.isPrimaryHost && !userItem.isCoHost);
+        if (canKick) {
+          const kickBtn = document.createElement('button');
+          kickBtn.className = 'btn-host-action btn-kick-action';
+          kickBtn.innerHTML = '<span>🚫 Kick</span>';
+          kickBtn.title = `Remove ${userItem.rawName} from this room`;
+          kickBtn.addEventListener('click', () => {
+            sound.playPop();
+            const confirmed = window.confirm(
+              `🚫 Kick User from Room?\n\nAre you sure you want to remove "${userItem.rawName}" from this room?`
+            );
+            if (confirmed) {
+              socket.emit('room:kick_user', {
+                targetSessionId: userItem.sessionId,
+                targetSocketId: userItem.id,
+                name: userItem.rawName
+              });
+              showToast(`Removed ${userItem.rawName} from room`, 'info');
+            }
+          });
+          actionsDiv.appendChild(kickBtn);
+        }
+
+        if (actionsDiv.children.length > 0) {
+          item.appendChild(actionsDiv);
+        }
       }
 
       hostsParticipantsList.appendChild(item);
@@ -3735,23 +3786,9 @@
 
     boardCanvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const zoomFactor = 1.08;
-      const oldZoom = state.zoom;
-      let newZoom = e.deltaY < 0 ? oldZoom * zoomFactor : oldZoom / zoomFactor;
-      newZoom = Math.max(0.2, Math.min(4.0, newZoom));
-
-      if (newZoom === oldZoom) return;
-      const mouseX = e.clientX;
-      const mouseY = e.clientY;
-
-      state.panX = mouseX - (mouseX - state.panX) * (newZoom / oldZoom);
-      state.panY = mouseY - (mouseY - state.panY) * (newZoom / oldZoom);
-      state.zoom = newZoom;
-
-      updateZoomUI();
-      renderGrid();
-      redrawBoard();
-      syncAllDomElementPositions();
+      const zoomFactor = 1.09;
+      const newZoom = e.deltaY < 0 ? state.zoom * zoomFactor : state.zoom / zoomFactor;
+      applyZoom(newZoom, e.clientX || window.innerWidth / 2, e.clientY || window.innerHeight / 2);
     }, { passive: false });
 
     boardCanvas.addEventListener('dblclick', (e) => {
@@ -5280,35 +5317,38 @@
   });
 
   function updateZoomUI() {
-    zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
+    if (zoomLabel) zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
   }
 
-  zoomInBtn.addEventListener('click', () => {
-    state.zoom = Math.min(4.0, state.zoom * 1.2);
+  function applyZoom(targetZoom, centerX = window.innerWidth / 2, centerY = window.innerHeight / 2) {
+    const oldZoom = state.zoom;
+    const clampedZoom = Math.max(0.2, Math.min(4.0, targetZoom));
+    if (Math.abs(clampedZoom - oldZoom) < 0.001) return;
+
+    state.panX = centerX - (centerX - state.panX) * (clampedZoom / oldZoom);
+    state.panY = centerY - (centerY - state.panY) * (clampedZoom / oldZoom);
+    state.zoom = clampedZoom;
+
     updateZoomUI();
     renderGrid();
     redrawBoard();
     syncAllDomElementPositions();
+  }
+
+  zoomInBtn.addEventListener('click', () => {
+    applyZoom(state.zoom * 1.25, window.innerWidth / 2, window.innerHeight / 2);
     sound.playClick();
   });
 
   zoomOutBtn.addEventListener('click', () => {
-    state.zoom = Math.max(0.2, state.zoom / 1.2);
-    updateZoomUI();
-    renderGrid();
-    redrawBoard();
-    syncAllDomElementPositions();
+    applyZoom(state.zoom / 1.25, window.innerWidth / 2, window.innerHeight / 2);
     sound.playClick();
   });
 
   zoomResetBtn.addEventListener('click', () => {
-    state.zoom = 1.0;
     state.panX = 0;
     state.panY = 0;
-    updateZoomUI();
-    renderGrid();
-    redrawBoard();
-    syncAllDomElementPositions();
+    applyZoom(1.0, window.innerWidth / 2, window.innerHeight / 2);
     sound.playClick();
   });
 
@@ -5939,6 +5979,29 @@
     else if (key === '4') { triggerReaction('🚀'); }
     else if (key === '5') { triggerReaction('👍'); }
 
+    // Browser Zoom Interception: Zoom canvas only, keep all UI bars and boxes fixed
+    if ((e.ctrlKey || e.metaKey) && (key === '=' || key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd')) {
+      e.preventDefault();
+      zoomInBtn.click();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (key === '-' || key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
+      e.preventDefault();
+      zoomOutBtn.click();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
+      e.preventDefault();
+      zoomResetBtn.click();
+      return;
+    }
+
+    if (key === '+' || key === '=') {
+      zoomInBtn.click();
+    } else if (key === '-' || key === '_') {
+      zoomOutBtn.click();
+    }
+
     if ((e.ctrlKey || e.metaKey) && key === 'z') {
       e.preventDefault();
       if (e.shiftKey) performRedo();
@@ -5946,11 +6009,24 @@
     } else if ((e.ctrlKey || e.metaKey) && key === 'y') {
       e.preventDefault();
       performRedo();
-    } else if ((e.ctrlKey || e.metaKey) && key === '0') {
-      e.preventDefault();
-      zoomResetBtn.click();
     }
   });
+
+  // Global window wheel zoom interceptor (prevents browser full-page scaling on Ctrl+Wheel and Touchpad Pinch)
+  window.addEventListener('wheel', (e) => {
+    const isScrollable = e.target.closest('#chatMessageList, #chatEmojiGridScroll, #reactionScrollArea, .reaction-catalog-grid, .modal-card, .shortcuts-card, .host-users-list, textarea');
+    if (e.ctrlKey || e.metaKey || !isScrollable) {
+      e.preventDefault();
+      const zoomFactor = 1.09;
+      const newZoom = e.deltaY < 0 ? state.zoom * zoomFactor : state.zoom / zoomFactor;
+      applyZoom(newZoom, e.clientX || window.innerWidth / 2, e.clientY || window.innerHeight / 2);
+    }
+  }, { passive: false });
+
+  // Prevent browser viewport scaling on Safari/iOS trackpad/touch gestures so only canvas zooms
+  document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
 
   window.addEventListener('keyup', (e) => {
     if (e.key === ' ') {
@@ -6142,6 +6218,62 @@
     showToast(`<strong>${escapeHtml(userName)}</strong> left the room`, 'leave', userAvatar);
     state.collaborators.delete(socketId);
     updateCollaboratorsUI();
+    renderManageHostsModal();
+  });
+
+  socket.on('room:user_kicked_broadcast', ({ name, byName }) => {
+    showToast(`🚫 <strong>${escapeHtml(name)}</strong> was removed from the room by ${escapeHtml(byName)}`, 'info');
+    if (typeof playSound === 'function') playSound('pop');
+    updateCollaboratorsUI();
+    renderManageHostsModal();
+  });
+
+  socket.on('room:kicked', ({ reason, by }) => {
+    sound.playPop();
+    alert(`🚫 ${reason || 'You have been removed from the room by the Host.'}`);
+    
+    // Reset room state and transition cleanly back to landing screen
+    state.roomId = null;
+    state.collaborators.clear();
+    state.elements = [];
+    state.domElementsMap.clear();
+    domLayer.innerHTML = '';
+    redrawBoard();
+
+    whiteboardScreen.classList.remove('active');
+    landingScreen.classList.add('active');
+    state.currentScreen = 'landing';
+    state.unreadChatCount = 0;
+    if (chatUnreadBadge) {
+      chatUnreadBadge.textContent = '0';
+      chatUnreadBadge.classList.add('hidden');
+    }
+    if (chatMessagesContainer) chatMessagesContainer.innerHTML = '';
+
+    const cleanUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
+    window.history.pushState({ path: cleanUrl }, '', cleanUrl);
+
+    showToast(`🚫 You were removed by ${by || 'the Host'}`, 'warning');
+  });
+
+  socket.on('room:banned', ({ roomId, reason }) => {
+    sound.playPop();
+    alert(`🚫 Access Denied!\n\n${reason || 'You cannot join this room because you were kicked 2 times by the Host.'}`);
+    
+    // Return to landing screen and clear room URL
+    state.roomId = null;
+    whiteboardScreen.classList.remove('active');
+    landingScreen.classList.add('active');
+    state.currentScreen = 'landing';
+
+    const cleanUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
+    window.history.pushState({ path: cleanUrl }, '', cleanUrl);
+
+    showToast(`🚫 Banned from room ${roomId || ''}`, 'warning');
+  });
+
+  socket.on('toast:error', (msg) => {
+    showToast(`⚠️ ${msg}`, 'warning');
   });
 
   socket.on('cursor:update', (data) => {
@@ -6520,72 +6652,138 @@
     }
   });
 
-  // --- Voice Input (Speech-to-Text) ---
+  // --- Voice Input (Speech-to-Text & Any-Language to English Translation) ---
   let speechRecognizer = null;
   let isListeningVoice = false;
+  let desiredListeningVoice = false;
+  let voiceOriginalPrefix = '';
+  let accumulatedFinalText = '';
+
+  async function translateToEnglish(text) {
+    if (!text || !text.trim()) return text;
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(text.trim())}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data[0])) {
+          const translated = data[0].map(item => item[0]).filter(Boolean).join('');
+          if (translated && translated.trim()) {
+            return translated.trim();
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Voice auto-translation error, using original transcript:', err);
+    }
+    return text.trim();
+  }
 
   function initSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return null;
 
     const recognizer = new SpeechRecognition();
-    recognizer.continuous = false;
+    recognizer.continuous = true;
     recognizer.interimResults = true;
+    recognizer.maxAlternatives = 1;
     recognizer.lang = navigator.language || 'en-US';
-
-    let originalTextBeforeVoice = '';
 
     recognizer.onstart = () => {
       isListeningVoice = true;
       if (btnVoiceChat) {
         btnVoiceChat.classList.add('recording');
-        btnVoiceChat.title = 'Listening... Click to stop';
+        btnVoiceChat.title = 'Listening (Speak in any language)... Click to finish';
       }
-      originalTextBeforeVoice = chatMessageInput ? chatMessageInput.value : '';
       if (chatMessageInput) {
-        chatMessageInput.placeholder = '🎙️ Listening... speak now';
+        chatMessageInput.placeholder = '🎙️ Listening... (Speak in any language → English)';
       }
       sound.playPop();
     };
 
-    recognizer.onresult = (event) => {
-      let transcript = '';
+    recognizer.onresult = async (event) => {
+      if (!desiredListeningVoice) return;
+
+      let interimTranscript = '';
+      let newFinalTranscript = '';
+
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        transcript += event.results[i][0].transcript;
+        const result = event.results[i];
+        if (result.isFinal) {
+          newFinalTranscript += result[0].transcript;
+        } else {
+          interimTranscript += result[0].transcript;
+        }
       }
-      if (chatMessageInput && transcript) {
-        const prefix = originalTextBeforeVoice ? originalTextBeforeVoice.trim() + ' ' : '';
-        chatMessageInput.value = prefix + transcript;
+
+      if (newFinalTranscript) {
+        const translatedPiece = await translateToEnglish(newFinalTranscript);
+        if (!desiredListeningVoice) return;
+        accumulatedFinalText += (accumulatedFinalText ? ' ' : '') + translatedPiece;
+      }
+
+      if (chatMessageInput && desiredListeningVoice) {
+        const prefix = voiceOriginalPrefix ? voiceOriginalPrefix.trim() + ' ' : '';
+        const currentSpoken = interimTranscript ? (accumulatedFinalText ? ' ' : '') + interimTranscript : '';
+        chatMessageInput.value = prefix + accumulatedFinalText + currentSpoken;
       }
     };
 
     recognizer.onerror = (event) => {
       console.warn('Speech recognition error:', event.error);
-      stopVoiceRecognition();
       if (event.error === 'not-allowed') {
+        desiredListeningVoice = false;
+        stopVoiceRecognition(true);
         showToast('Microphone access denied. Please allow microphone in browser settings.', 'warning');
-      } else if (event.error !== 'no-speech') {
-        showToast(`Voice error: ${event.error}`, 'warning');
+      } else if (event.error === 'network') {
+        desiredListeningVoice = false;
+        stopVoiceRecognition(true);
+        showToast('Voice network error. Please check your connection.', 'warning');
       }
     };
 
     recognizer.onend = () => {
-      stopVoiceRecognition();
-      if (chatMessageInput) {
-        chatMessageInput.placeholder = 'Type a message or use voice...';
-        chatMessageInput.focus();
+      isListeningVoice = false;
+      // Auto-restart if user still wants voice active (like Google Chrome continuous voice input)
+      if (desiredListeningVoice) {
+        try {
+          recognizer.start();
+        } catch (err) {
+          cleanupVoiceUI();
+        }
+      } else {
+        cleanupVoiceUI();
       }
     };
 
     return recognizer;
   }
 
+  function cleanupVoiceUI() {
+    isListeningVoice = false;
+    desiredListeningVoice = false;
+    voiceOriginalPrefix = '';
+    accumulatedFinalText = '';
+    if (btnVoiceChat) {
+      btnVoiceChat.classList.remove('recording');
+      btnVoiceChat.title = 'Voice Input (Speech to Text)';
+    }
+    if (chatMessageInput) {
+      chatMessageInput.placeholder = 'Type a message or use voice...';
+    }
+  }
+
   function startVoiceRecognition() {
+    desiredListeningVoice = true;
+    voiceOriginalPrefix = chatMessageInput ? chatMessageInput.value : '';
+    accumulatedFinalText = '';
+
     if (!speechRecognizer) {
       speechRecognizer = initSpeechRecognition();
     }
     if (!speechRecognizer) {
       showToast('Voice input is not supported in this browser. Try Google Chrome or Edge.', 'warning');
+      desiredListeningVoice = false;
       return;
     }
 
@@ -6596,24 +6794,37 @@
     }
   }
 
-  function stopVoiceRecognition() {
+  async function stopVoiceRecognition(skipInputRewrite = false) {
+    desiredListeningVoice = false;
     isListeningVoice = false;
-    if (btnVoiceChat) {
-      btnVoiceChat.classList.remove('recording');
-      btnVoiceChat.title = 'Voice Input (Speech to Text)';
-    }
+    const oldPrefix = voiceOriginalPrefix;
+    voiceOriginalPrefix = '';
+    accumulatedFinalText = '';
+
     if (speechRecognizer) {
       try {
         speechRecognizer.stop();
       } catch (err) {}
     }
+
+    // Final translate pass on current input if there is any pending non-English speech and we are not clearing
+    if (!skipInputRewrite && chatMessageInput && chatMessageInput.value) {
+      const currentVal = chatMessageInput.value.trim();
+      if (currentVal && currentVal !== oldPrefix.trim()) {
+        const translatedFull = await translateToEnglish(currentVal);
+        if (!desiredListeningVoice && chatMessageInput && chatMessageInput.value) {
+          chatMessageInput.value = translatedFull;
+        }
+      }
+    }
+    cleanupVoiceUI();
   }
 
   if (btnVoiceChat) {
     btnVoiceChat.addEventListener('click', (e) => {
       e.preventDefault();
       if (isListeningVoice) {
-        stopVoiceRecognition();
+        stopVoiceRecognition(false);
         sound.playClick();
       } else {
         startVoiceRecognition();
@@ -6634,12 +6845,12 @@
         return;
       }
 
-      if (isListeningVoice) {
-        stopVoiceRecognition();
-      }
+      // Stop voice recognition and prevent rewriting to input bar
+      stopVoiceRecognition(true);
 
       socket.emit('chat:send', { text });
       chatMessageInput.value = '';
+      chatMessageInput.focus();
       sound.playClick();
     });
   }
@@ -6770,10 +6981,17 @@
 
         av.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (peer.cursor) {
-            smoothFlyTo(peer.cursor.x, peer.cursor.y);
-            showToast(`Following ${peer.name}`);
-            sound.playClick();
+          const totalInRoom = state.collaborators.size + 1;
+          if (totalInRoom > 3) {
+            openManageHostsModal();
+          } else {
+            if (peer.cursor) {
+              smoothFlyTo(peer.cursor.x, peer.cursor.y);
+              showToast(`Following ${peer.name}`);
+              sound.playClick();
+            } else {
+              openManageHostsModal();
+            }
           }
         });
         collaboratorStack.appendChild(av);
