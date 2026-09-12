@@ -3,11 +3,12 @@
 <div align="center">
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Render.com-00C7B7?style=for-the-badge&logo=render&logoColor=white)](https://cocanvas-7gef.onrender.com)
+[![Version](https://img.shields.io/badge/Version-3.0_Latest-8B5CF6?style=for-the-badge)](https://github.com/jayachandra2003/CoCanvas)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Socket.io](https://img.shields.io/badge/Socket.io-4.8.3-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](LICENSE)
 
-**An ultra-fast, multiplayer virtual whiteboard and team collaboration workspace featuring infinite canvas rendering, live cursor tracking, interactive sticky notes, syntax code cards, procedural VFX, and integrated ChatSpace.**
+**An ultra-fast, multiplayer virtual whiteboard and team collaboration workspace featuring infinite canvas rendering, live cursor tracking, multi-language continuous voice chat, MS Paint brushes, interactive sticky notes, smart code cards, and procedural VFX.**
 
 [🚀 **Launch Live Application**](https://cocanvas-7gef.onrender.com) · [🐞 Report Bug](https://github.com/jayachandra2003/CoCanvas/issues) · [✨ Request Feature](https://github.com/jayachandra2003/CoCanvas/issues)
 
@@ -15,33 +16,37 @@
 
 ---
 
-## 🌟 Highlights & Features
+## 🌟 Highlights & Features (Version 3.0)
 
-### 🖌️ Multi-Layer Whiteboard Engine
+### 🖌️ Multi-Layer Whiteboard & MS Paint Brush Engine
 * **Infinite Pan & Smooth Zoom**: Hardware-accelerated multi-canvas architecture (Grid, Board, Draft, DOM, and VFX layers) with smooth zoom interpolation (`10%` to `500%`).
+* **9 MS Paint Realistic Brushes**: Standard Brush, Calligraphy Pen 1 & 2, Airbrush/Spray, Oil Brush, Crayon, Marker, Natural Pencil, and Watercolor Brush with live stroke previews.
 * **Drawing & Shape Tools**: Precision Pen, Highlighter, Eraser, Line, Arrow, Rectangle, Ellipse/Circle, and Rich Text boxes.
-* **Shape Color & Fill Styles**: Full support for transparent outlines (`🚫 None`), 25% soft translucent fills (`✨ Tint`), and 100% opaque fills (`⬛ Solid`), with customizable stroke and fill palettes (matching stroke color or independent pastel shades).
+* **Shape Color & Fill Styles**: Transparent outlines (`🚫 None`), 25% soft translucent fills (`✨ Tint`), and 100% opaque fills (`⬛ Solid`), with customizable stroke and fill palettes.
 * **Selection & Transform Box**: Select, drag, resize from 8-point handles, clone, and delete any whiteboard element.
 * **Built-in Templates**: One-click insertion for **Kanban Boards**, **Priority 2x2 Matrix**, and **Team Retrospective boards**.
-* **Export in Multiple Formats**: Export entire board or viewport to **PNG (High-Res)**, **PDF document**, **Word DOCX**, and structured **JSON** with full re-import capability.
+* **Export in Multiple Formats**: Export entire board or viewport to **PNG (High-Res 2x)**, **PDF document**, **Word DOCX**, and structured **JSON** with full re-import capability.
 
-### 👥 Real-Time Multiplayer & Presentation Modes
-* **Host Presentation Mode vs. Friendly Mode**: Host can switch rooms between *Presentation Mode* (locks participant drawing tools into view-only presentation, ideal for classrooms & webinars) and *Friendly Mode* (full collaborative drawing for all participants).
-* **Transfer Host Ownership**: Primary Host can pass full room ownership (`👑`) to any participant with 1 click.
-* **Share Host (Multiple Co-Hosts)**: Primary Host can grant or revoke Co-Host privileges (`⭐`) to multiple teammates, allowing them to present and draw concurrently in Host Presentation Mode.
-* **Room Roles & Host Management Modal**: Interactive dialog to view all room participants, their connection status, and manage administrative roles in real time.
+### 👥 Real-Time Multiplayer & Role Management
+* **Host Presentation Mode vs. Friendly Mode**: Switch between *Presentation Mode* (locks participant drawing tools into view-only presentation for webinars/classrooms) and *Friendly Mode* (full collaborative drawing for everyone).
+* **Room Roles & Member Hub**: Top-right dropdown modal anchored under teammate avatars to inspect participants, jump camera directly to any collaborator's view, and manage roles in real time.
+* **Transfer Host & Co-Host Privileges**: Primary Host (`👑`) can pass ownership or designate multiple Co-Hosts (`⭐`) to share presentation controls.
+* **🛡️ 2-Kick Permanent Ban Anti-Abuse**: Host kick tracking per session with automated permanent room blacklist enforcement on a 2nd kick to protect sessions from disruptive users.
 * **Smart Host Succession**: Automatic priority host handover upon disconnect, prioritizing online Co-Hosts before other participants.
-* **Live Multiplayer Presence**: Real-time cursor coordinates, user names, color rings, role badges (`👑` / `⭐`), and live status dots.
-* **Toggle Collaborators' Cursors Visibility**: 1-click toggle (`Alt + C`) to show or hide all remote peer cursors for a clean, distraction-free canvas or presentation recording.
+* **Collaborator Cursor Toggle**: 1-click toggle (`Alt + C`) to show or hide remote peer cursors for distraction-free canvas recording.
 * **Laser Pointer & Radar Ping**: Draw disappearing glow laser trails (`K`) or ping points on the canvas (`P`) to focus team attention.
 * **Instant Cursor Chat**: Press `/` or click Cursor Chat to broadcast real-time floating thought bubbles attached directly to your cursor.
-* **Emoji Bursts**: Send floating celebration reaction particles anywhere on the canvas.
+* **Emoji Reaction Particles**: Send floating celebration reaction particles anywhere on the canvas.
 
-### 💬 ChatSpace with Voice Input
-* **Speech-to-Text Voice Input**: Dictate messages hands-free using the built-in microphone button with instant speech recognition.
+### 💬 ChatSpace & Multi-Language Voice Typing
+* **🎙️ Multi-Language Continuous Voice Typing**: Hands-free voice recognition with continuous listening (no premature cutoffs) and automatic real-time translation of any spoken language (Hindi, Telugu, Tamil, Spanish, French, German, Japanese, etc.) directly into English!
 * **Docked Right-Wall Sidebar**: Clean, professional Slack/Discord-grade chat panel.
 * **Smooth Wall Collapse & Unread Badges**: Slide the chat into the right wall (`>`) with live notification badge counter and sound chime alerts for new unread messages.
 * **Room History Sync**: New and reconnecting teammates instantly receive the recent room chat thread.
+
+### 🗺️ Enhanced Radar Minimap
+* **Expanded Viewport Radar**: Real-time canvas radar preview (`165px × 105px`) with click-to-fly navigation.
+* **Adaptive Collision Avoidance**: Automatically repositions on laptop screens and split-browser windows to guarantee zero overlap with canvas tools.
 
 ### 💻 Smart Code Snippet Compiler & Sticky Notes
 * **Smart Code IDE Engine**: Interactive multi-language code cards (Java, Python, C++, TypeScript, JavaScript, Rust, Go, HTML, CSS, JSON, Markdown) with auto-closing bracket pairs, smart enter expansion, and intelligent auto-indentation.
@@ -84,7 +89,8 @@
 ## 🛠️ Technology Stack
 
 * **Backend**: Node.js, Express 5, Socket.io 4.8
-* **Frontend**: Vanilla JavaScript (ES6+), HTML5 Canvas 2D API, Web Audio API
+* **Frontend**: Vanilla JavaScript (ES6+), HTML5 Canvas 2D API, Web Audio API, Web Speech API
+* **Translation**: Fast real-time multi-lingual auto-translation engine
 * **Styling**: Modern CSS3, Neo-Brutalist Design System, CSS Grid & Flexbox
 * **Multi-Layer Rendering**: Layered HTML5 Canvas (Grid Canvas, Board Canvas, Draft Canvas, VFX Layer, DOM Layer)
 

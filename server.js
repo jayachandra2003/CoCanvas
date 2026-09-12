@@ -352,6 +352,23 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Live in-progress drawing streaming
+  socket.on('draw:live', (data) => {
+    if (!currentRoomId || !data) return;
+    socket.to(currentRoomId).emit('draw:lived', {
+      socketId: socket.id,
+      ...data
+    });
+  });
+
+  socket.on('draw:live_end', (data) => {
+    if (!currentRoomId) return;
+    socket.to(currentRoomId).emit('draw:lived_end', {
+      socketId: socket.id,
+      ...(data || {})
+    });
+  });
+
   socket.on('element:add', (element) => {
     if (!currentRoomId || !element || !element.id) return;
     const room = getOrCreateRoom(currentRoomId);

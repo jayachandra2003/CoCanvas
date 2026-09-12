@@ -301,6 +301,7 @@
     undoStack: [],
     redoStack: [],
     collaborators: new Map(),
+    remoteLiveDrafts: new Map(),
     particles: [],
     radarPings: [],
     laserTrails: [],
@@ -2043,6 +2044,13 @@
   }
 
   function createTextBoxNode(el) {
+    if (!el.fontSize) {
+      el.fontSize = el.width ? Math.max(16, el.width * 5) : 20;
+    }
+    if (!el.color) {
+      el.color = state.activeColor || '#111827';
+    }
+
     const box = document.createElement('div');
     box.className = 'board-text-box';
     box.dataset.id = el.id;
@@ -2050,7 +2058,83 @@
     const header = document.createElement('div');
     header.className = 'board-text-header';
 
+    // Drag handle icon / label
+    const dragTag = document.createElement('span');
+    dragTag.className = 'board-text-drag-tag';
+    dragTag.title = 'Drag to move';
+    dragTag.innerHTML = `🔤`;
+    header.appendChild(dragTag);
+
+    // Font Size Stepper (-) [20px] (+)
+    const sizeMinusBtn = document.createElement('button');
+    sizeMinusBtn.type = 'button';
+    sizeMinusBtn.className = 'board-text-btn-size';
+    sizeMinusBtn.title = 'Decrease Text Size';
+    sizeMinusBtn.innerHTML = '−';
+
+    const sizeValBadge = document.createElement('span');
+    sizeValBadge.className = 'board-text-size-val';
+    sizeValBadge.textContent = `${el.fontSize}px`;
+
+    const sizePlusBtn = document.createElement('button');
+    sizePlusBtn.type = 'button';
+    sizePlusBtn.className = 'board-text-btn-size';
+    sizePlusBtn.title = 'Increase Text Size';
+    sizePlusBtn.innerHTML = '+';
+
+    header.appendChild(sizeMinusBtn);
+    header.appendChild(sizeValBadge);
+    header.appendChild(sizePlusBtn);
+
+    // Separator
+    const sep1 = document.createElement('div');
+    sep1.className = 'board-text-sep';
+    header.appendChild(sep1);
+
+    // Color Swatches
+    const TEXT_COLORS = ['#111827', '#ED1C24', '#22B14C', '#00A2E8', '#8B5CF6', '#FF7F27', '#FBBF24'];
+    const colorDotsWrap = document.createElement('div');
+    colorDotsWrap.className = 'board-text-colors-wrap';
+
+    TEXT_COLORS.forEach((colorHex) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = `board-text-color-dot ${el.color === colorHex ? 'active' : ''}`;
+      dot.dataset.color = colorHex;
+      dot.style.backgroundColor = colorHex;
+      dot.title = `Color: ${colorHex}`;
+
+      ['pointerdown', 'mousedown', 'pointerup', 'click'].forEach((evtType) => {
+        dot.addEventListener(evtType, (e) => e.stopPropagation());
+      });
+
+      dot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!canCurrentUserDraw()) {
+          showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+          return;
+        }
+        el.color = colorHex;
+        textarea.style.color = colorHex;
+        colorDotsWrap.querySelectorAll('.board-text-color-dot').forEach((d) => d.classList.remove('active'));
+        dot.classList.add('active');
+        socket.emit('element:update', { id: el.id, color: el.color });
+        sound.playPop();
+      });
+
+      colorDotsWrap.appendChild(dot);
+    });
+
+    header.appendChild(colorDotsWrap);
+
+    // Separator
+    const sep2 = document.createElement('div');
+    sep2.className = 'board-text-sep';
+    header.appendChild(sep2);
+
+    // Delete Button
     const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
     deleteBtn.className = 'board-text-btn-delete';
     deleteBtn.innerHTML = '&times;';
     deleteBtn.title = 'Delete Text';
@@ -2076,16 +2160,43 @@
 
     const textarea = document.createElement('textarea');
     textarea.className = 'board-text-input';
-    textarea.placeholder = 'Type text...';
+    textarea.placeholder = 'Type text here...';
     textarea.value = el.text || '';
-    textarea.style.color = el.color || state.activeColor;
-    textarea.style.fontSize = `${Math.max(16, (el.width || 3) * 5)}px`;
+    textarea.style.color = el.color;
+    textarea.style.fontSize = `${el.fontSize}px`;
     textarea.rows = 1;
 
     function autoResize() {
       textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
+      textarea.style.height = `${Math.max(30, textarea.scrollHeight)}px`;
     }
+
+    sizeMinusBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!canCurrentUserDraw()) return;
+      el.fontSize = Math.max(12, (el.fontSize || 20) - 3);
+      textarea.style.fontSize = `${el.fontSize}px`;
+      sizeValBadge.textContent = `${el.fontSize}px`;
+      autoResize();
+      socket.emit('element:update', { id: el.id, fontSize: el.fontSize });
+      sound.playClick();
+    });
+
+    sizePlusBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!canCurrentUserDraw()) return;
+      el.fontSize = Math.min(72, (el.fontSize || 20) + 3);
+      textarea.style.fontSize = `${el.fontSize}px`;
+      sizeValBadge.textContent = `${el.fontSize}px`;
+      autoResize();
+      socket.emit('element:update', { id: el.id, fontSize: el.fontSize });
+      sound.playClick();
+    });
+
+    ['pointerdown', 'mousedown', 'pointerup', 'click'].forEach((evtType) => {
+      sizeMinusBtn.addEventListener(evtType, (e) => e.stopPropagation());
+      sizePlusBtn.addEventListener(evtType, (e) => e.stopPropagation());
+    });
 
     ['pointerdown', 'mousedown', 'keydown'].forEach((evtType) => {
       textarea.addEventListener(evtType, (e) => e.stopPropagation());
@@ -2097,7 +2208,7 @@
       autoResize();
       el.text = textarea.value;
       clearTimeout(typingTimeout);
-      typingTimeout = setTimeout(() => socket.emit('element:update', { id: el.id, text: el.text }), 150);
+      typingTimeout = setTimeout(() => socket.emit('element:update', { id: el.id, text: el.text, fontSize: el.fontSize, color: el.color }), 150);
     });
 
     textarea.addEventListener('focus', () => {
@@ -2107,6 +2218,7 @@
         return;
       }
       box.classList.add('active');
+      autoResize();
     });
     textarea.addEventListener('blur', () => box.classList.remove('active'));
 
@@ -2118,7 +2230,7 @@
     let initialWorldPos = { x: el.x, y: el.y };
 
     box.addEventListener('pointerdown', (e) => {
-      if (e.target === textarea || e.target.closest('.board-text-btn-delete')) return;
+      if (e.target === textarea || e.target.closest('.board-text-btn-delete') || e.target.closest('.board-text-btn-size') || e.target.closest('.board-text-color-dot')) return;
       if (!canCurrentUserDraw()) return;
       isDragging = true;
       dragStartPos = { x: e.clientX, y: e.clientY };
@@ -3500,10 +3612,57 @@
     }
   }
 
+  function redrawDraftLayer() {
+    draftCtx.clearRect(0, 0, viewWidth, viewHeight);
+
+    // 1. Peer remote in-progress drawings
+    if (state.remoteLiveDrafts && state.remoteLiveDrafts.size > 0) {
+      state.remoteLiveDrafts.forEach((draft) => {
+        if (!draft) return;
+        if (ALL_BRUSH_TOOLS.includes(draft.tool) && draft.points && draft.points.length > 0) {
+          drawElement(draftCtx, {
+            type: draft.tool,
+            points: draft.points,
+            color: draft.color || '#FF6B4A',
+            width: draft.width || 3
+          });
+        } else if (ALL_SHAPE_TOOLS.includes(draft.tool) && draft.shapeStart && draft.shapeEnd) {
+          const previewEl = getShapeElementObject(draft.tool, draft.shapeStart, draft.shapeEnd);
+          if (previewEl) {
+            if (draft.color) previewEl.color = draft.color;
+            if (draft.width) previewEl.width = draft.width;
+            if (draft.fillStyle) previewEl.fillStyle = draft.fillStyle;
+            if (draft.fillColor) previewEl.fillColor = draft.fillColor;
+            drawElement(draftCtx, previewEl);
+          }
+        }
+      });
+    }
+
+    // 2. Local in-progress drawing
+    if (isDrawing) {
+      if (ALL_BRUSH_TOOLS.includes(state.activeTool) && activeStrokePoints.length > 0) {
+        drawElement(draftCtx, {
+          type: state.activeTool,
+          points: activeStrokePoints,
+          color: state.activeColor,
+          width: state.activeWidth
+        });
+      } else if (ALL_SHAPE_TOOLS.includes(state.activeTool) && currentShapeStart && lastClientPos) {
+        const previewElement = getShapeElementObject(state.activeTool, currentShapeStart, screenToWorld(lastClientPos.x, lastClientPos.y));
+        if (previewElement) drawElement(draftCtx, previewElement);
+      }
+    }
+  }
+
   function setupCanvasEvents() {
     boardCanvas.addEventListener('pointerdown', (e) => {
       dismissAllPopovers();
       lastClientPos = { x: e.clientX, y: e.clientY };
+
+      try {
+        boardCanvas.setPointerCapture(e.pointerId);
+      } catch (err) {}
 
       if (state.spacePressed || e.button === 1 || (state.activeTool === 'select' && e.button === 0 && !e.altKey && !hitTestAnyElement(screenToWorld(e.clientX, e.clientY)))) {
         state.isPanning = true;
@@ -3669,6 +3828,7 @@
       isDrawing = true;
       activeStrokePoints = [worldPos];
       currentShapeStart = worldPos;
+      redrawDraftLayer();
       sound.playClick();
     });
 
@@ -3721,21 +3881,34 @@
 
       if (ALL_BRUSH_TOOLS.includes(state.activeTool)) {
         activeStrokePoints.push(worldPos);
-        draftCtx.clearRect(0, 0, viewWidth, viewHeight);
-        drawElement(draftCtx, {
-          type: state.activeTool,
+        redrawDraftLayer();
+        socket.emit('draw:live', {
+          tool: state.activeTool,
           points: activeStrokePoints,
           color: state.activeColor,
           width: state.activeWidth
         });
       } else if (ALL_SHAPE_TOOLS.includes(state.activeTool)) {
-        draftCtx.clearRect(0, 0, viewWidth, viewHeight);
-        const previewElement = getShapeElementObject(state.activeTool, currentShapeStart, worldPos);
-        if (previewElement) drawElement(draftCtx, previewElement);
+        redrawDraftLayer();
+        socket.emit('draw:live', {
+          tool: state.activeTool,
+          shapeStart: currentShapeStart,
+          shapeEnd: worldPos,
+          color: state.activeColor,
+          width: state.activeWidth,
+          fillStyle: state.activeFillStyle || 'none',
+          fillColor: state.activeFillColor || '#FFFFFF'
+        });
       }
     });
 
-    window.addEventListener('pointerup', (e) => {
+    const finishDrawing = (e) => {
+      try {
+        if (e && e.pointerId && boardCanvas.hasPointerCapture(e.pointerId)) {
+          boardCanvas.releasePointerCapture(e.pointerId);
+        }
+      } catch (err) {}
+
       if (state.isPanning) {
         state.isPanning = false;
         boardCanvas.style.cursor = state.activeTool === 'select' ? 'default' : 'crosshair';
@@ -3754,11 +3927,18 @@
       if (!isDrawing) return;
       isDrawing = false;
       lastEraserPos = null;
-      draftCtx.clearRect(0, 0, viewWidth, viewHeight);
 
-      if (state.activeTool === 'eraser' || state.activeTool === 'laser') return;
+      // End live drawing preview for remote peers
+      socket.emit('draw:live_end', {});
 
-      const worldPos = screenToWorld(e.clientX, e.clientY);
+      if (state.activeTool === 'eraser' || state.activeTool === 'laser') {
+        redrawDraftLayer();
+        return;
+      }
+
+      const clientX = (e && typeof e.clientX === 'number') ? e.clientX : (lastClientPos ? lastClientPos.x : window.innerWidth / 2);
+      const clientY = (e && typeof e.clientY === 'number') ? e.clientY : (lastClientPos ? lastClientPos.y : window.innerHeight / 2);
+      const worldPos = screenToWorld(clientX, clientY);
 
       if (ALL_BRUSH_TOOLS.includes(state.activeTool)) {
         if (activeStrokePoints.length === 1) {
@@ -3782,7 +3962,11 @@
       }
       activeStrokePoints = [];
       currentShapeStart = null;
-    });
+      redrawDraftLayer();
+    };
+
+    window.addEventListener('pointerup', finishDrawing);
+    window.addEventListener('pointercancel', finishDrawing);
 
     boardCanvas.addEventListener('wheel', (e) => {
       e.preventDefault();
@@ -4297,14 +4481,85 @@
     }
   });
 
+  function alignPopoverToTrigger(popoverEl, triggerBtn) {
+    if (!popoverEl) return;
+    if (window.innerWidth <= 768) {
+      popoverEl.style.left = '50%';
+      popoverEl.style.transform = 'translateX(-50%)';
+      popoverEl.style.bottom = '68px';
+      return;
+    }
+    if (!triggerBtn) {
+      popoverEl.style.left = '50%';
+      popoverEl.style.transform = 'translateX(-50%)';
+      popoverEl.style.bottom = '68px';
+      return;
+    }
+    const rect = triggerBtn.getBoundingClientRect();
+    const popoverWidth = popoverEl.offsetWidth || 300;
+    let targetLeft = rect.left + rect.width / 2;
+    const minLeft = popoverWidth / 2 + 10;
+    const maxLeft = window.innerWidth - popoverWidth / 2 - 10;
+    targetLeft = Math.max(minLeft, Math.min(maxLeft, targetLeft));
+    popoverEl.style.left = `${targetLeft}px`;
+    popoverEl.style.transform = 'translateX(-50%)';
+    popoverEl.style.bottom = `${Math.max(68, window.innerHeight - rect.top + 8)}px`;
+  }
+
+  function togglePopover(popoverEl, triggerBtn) {
+    if (!popoverEl) return;
+    const wasOpen = popoverEl.classList.contains('open') || popoverEl.classList.contains('active');
+    dismissAllPopovers();
+    if (!wasOpen) {
+      popoverEl.classList.add('open');
+      popoverEl.classList.add('active');
+      if (triggerBtn) {
+        triggerBtn.classList.add('popover-active');
+        const parentContainer = triggerBtn.closest('.popover-container, .dropdown-wrapper');
+        if (parentContainer) {
+          parentContainer.classList.add('open');
+          parentContainer.classList.add('active');
+        }
+      }
+      alignPopoverToTrigger(popoverEl, triggerBtn);
+    }
+  }
+
   function dismissAllPopovers() {
+    document.querySelectorAll('.popover-menu').forEach((m) => {
+      m.classList.remove('open');
+      m.classList.remove('active');
+    });
+    document.querySelectorAll('.dropdown-menu').forEach((m) => {
+      m.classList.remove('open');
+      m.classList.remove('active');
+    });
     document.querySelectorAll('.popover-container').forEach((c) => c.classList.remove('open'));
     document.querySelectorAll('.dropdown-wrapper').forEach((d) => d.classList.remove('active'));
+    document.querySelectorAll('.dock-btn').forEach((b) => b.classList.remove('popover-active'));
   }
 
   let EMOJI_CATEGORIES = null;
 
   function setupPopovers() {
+    // Mount all popover menus outside the bottom dock to avoid transform containing blocks and overflow clipping on mobile
+    let mount = document.getElementById('canvasPopoversMount');
+    if (!mount) {
+      mount = document.createElement('div');
+      mount.id = 'canvasPopoversMount';
+      mount.className = 'canvas-popovers-mount';
+      const screen = document.getElementById('whiteboardScreen') || document.body;
+      screen.appendChild(mount);
+    }
+
+    const popoverIds = ['brushesPopover', 'eraserPopover', 'shapesPopover', 'colorPopover', 'reactionPopover', 'exportMenu'];
+    popoverIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement !== mount) {
+        mount.appendChild(el);
+      }
+    });
+
     if (roomModeBtn) {
       roomModeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -4312,9 +4567,10 @@
           showToast(state.roomMode === 'host' ? '🎓 Room is in Presentation Mode (Controlled by Host)' : '🤝 Friendly Mode: Everyone can draw', 'info');
           return;
         }
-        const isOpen = roomModeWrapper && roomModeWrapper.classList.contains('active');
+        const parent = roomModeBtn.closest('.dropdown-wrapper') || roomModeWrapper;
+        const isOpen = parent && parent.classList.contains('active');
         dismissAllPopovers();
-        if (!isOpen && roomModeWrapper) roomModeWrapper.classList.add('active');
+        if (!isOpen && parent) parent.classList.add('active');
         sound.playClick();
       });
     }
@@ -4358,11 +4614,9 @@
           showToast('🎓 Presentation Mode: Only Host can draw.', 'warning');
           return;
         }
-        const parent = brushPopoverBtn.parentElement;
-        const isOpen = parent.classList.contains('open');
-        dismissAllPopovers();
-        if (!isOpen) {
-          parent.classList.add('open');
+        const wasOpen = brushesPopover.classList.contains('open');
+        togglePopover(brushesPopover, brushPopoverBtn);
+        if (!wasOpen) {
           syncBrushSizeUI();
         }
         sound.playClick();
@@ -4439,11 +4693,9 @@
         }
         state.activeTool = 'eraser';
         updateActiveToolUI();
-        const parent = eraserPopoverBtn.parentElement;
-        const isOpen = parent.classList.contains('open');
-        dismissAllPopovers();
-        if (!isOpen) {
-          parent.classList.add('open');
+        const wasOpen = eraserPopover.classList.contains('open');
+        togglePopover(eraserPopover, eraserPopoverBtn);
+        if (!wasOpen) {
           syncEraserSizeUI();
         }
         sound.playClick();
@@ -4486,47 +4738,51 @@
       });
     }
 
-    shapePopoverBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (!canCurrentUserDraw()) {
-        showToast('🎓 Presentation Mode: Only Host can draw shapes.', 'warning');
-        return;
-      }
-      const parent = shapePopoverBtn.parentElement;
-      const isOpen = parent.classList.contains('open');
-      dismissAllPopovers();
-      if (!isOpen) parent.classList.add('open');
-      sound.playClick();
-    });
-
-    shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((item) => {
-      item.addEventListener('click', (e) => {
+    if (shapePopoverBtn && shapesPopover) {
+      shapePopoverBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (!canCurrentUserDraw()) {
-          showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+          showToast('🎓 Presentation Mode: Only Host can draw shapes.', 'warning');
           return;
         }
-        const tool = item.dataset.tool;
-        state.activeTool = tool;
-        shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((i) => i.classList.remove('active'));
-        item.classList.add('active');
-        const svg = item.querySelector('svg');
-        if (svg) activeShapeIcon.innerHTML = svg.outerHTML;
-        shapePopoverBtn.dataset.tool = tool;
-        updateActiveToolUI();
-        dismissAllPopovers();
+        togglePopover(shapesPopover, shapePopoverBtn);
         sound.playClick();
       });
-    });
+    }
 
-    colorPopoverBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const parent = colorPopoverBtn.parentElement;
-      const isOpen = parent.classList.contains('open');
-      dismissAllPopovers();
-      if (!isOpen) parent.classList.add('open');
-      sound.playClick();
-    });
+    if (shapesPopover) {
+      shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((item) => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!canCurrentUserDraw()) {
+            showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+            return;
+          }
+          const tool = item.dataset.tool;
+          state.activeTool = tool;
+          shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((i) => i.classList.remove('active'));
+          item.classList.add('active');
+          const svg = item.querySelector('svg');
+          if (svg && activeShapeIcon) activeShapeIcon.innerHTML = svg.outerHTML;
+          if (shapePopoverBtn) shapePopoverBtn.dataset.tool = tool;
+          updateActiveToolUI();
+          dismissAllPopovers();
+          sound.playClick();
+        });
+      });
+    }
+
+    if (colorPopoverBtn && colorPopover) {
+      colorPopoverBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wasOpen = colorPopover.classList.contains('open');
+        togglePopover(colorPopover, colorPopoverBtn);
+        if (!wasOpen) {
+          syncColorPopoverUI();
+        }
+        sound.playClick();
+      });
+    }
 
     const slot1Btn = document.getElementById('slotColor1');
     const slot2Btn = document.getElementById('slotColor2');
@@ -4594,72 +4850,74 @@
       });
     }
 
-    colorPopover.querySelectorAll('.ms-color-dot').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const selectedColor = btn.dataset.color;
-        if (state.activeColorSlot === 'color1') {
-          state.activeColor = selectedColor;
-          if (state.selectedElementId && canCurrentUserDraw()) {
-            const el = state.elements.find((item) => item.id === state.selectedElementId);
-            if (el) {
-              el.color = state.activeColor;
-              redrawBoard();
-              socket.emit('element:update', el);
+    if (colorPopover) {
+      colorPopover.querySelectorAll('.ms-color-dot').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const selectedColor = btn.dataset.color;
+          if (state.activeColorSlot === 'color1') {
+            state.activeColor = selectedColor;
+            if (state.selectedElementId && canCurrentUserDraw()) {
+              const el = state.elements.find((item) => item.id === state.selectedElementId);
+              if (el) {
+                el.color = state.activeColor;
+                redrawBoard();
+                socket.emit('element:update', el);
+              }
+            }
+          } else {
+            state.activeFillColor = selectedColor;
+            if (state.activeFillStyle === 'none') state.activeFillStyle = 'solid';
+            if (state.selectedElementId && canCurrentUserDraw()) {
+              const el = state.elements.find((item) => item.id === state.selectedElementId);
+              if (el && ALL_2D_SHAPES.includes(el.type)) {
+                el.fillColor = state.activeFillColor;
+                if (el.fillStyle === 'none') el.fillStyle = 'solid';
+                redrawBoard();
+                socket.emit('element:update', el);
+              }
             }
           }
-        } else {
-          state.activeFillColor = selectedColor;
-          if (state.activeFillStyle === 'none') state.activeFillStyle = 'solid';
+          syncColorPopoverUI();
+          sound.playClick();
+        });
+      });
+
+      colorPopover.querySelectorAll('.fill-style-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.activeFillStyle = btn.dataset.fill;
+          syncColorPopoverUI();
           if (state.selectedElementId && canCurrentUserDraw()) {
             const el = state.elements.find((item) => item.id === state.selectedElementId);
             if (el && ALL_2D_SHAPES.includes(el.type)) {
-              el.fillColor = state.activeFillColor;
-              if (el.fillStyle === 'none') el.fillStyle = 'solid';
+              el.fillStyle = state.activeFillStyle;
+              if (state.activeFillStyle !== 'none' && !el.fillColor) el.fillColor = state.activeFillColor;
               redrawBoard();
               socket.emit('element:update', el);
             }
           }
-        }
-        syncColorPopoverUI();
-        sound.playClick();
+          sound.playClick();
+        });
       });
-    });
 
-    colorPopover.querySelectorAll('.fill-style-btn').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        state.activeFillStyle = btn.dataset.fill;
-        syncColorPopoverUI();
-        if (state.selectedElementId && canCurrentUserDraw()) {
-          const el = state.elements.find((item) => item.id === state.selectedElementId);
-          if (el && ALL_2D_SHAPES.includes(el.type)) {
-            el.fillStyle = state.activeFillStyle;
-            if (state.activeFillStyle !== 'none' && !el.fillColor) el.fillColor = state.activeFillColor;
-            redrawBoard();
-            socket.emit('element:update', el);
+      colorPopover.querySelectorAll('.width-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.activeWidth = parseInt(btn.dataset.width, 10);
+          syncColorPopoverUI();
+          if (state.selectedElementId && canCurrentUserDraw()) {
+            const el = state.elements.find((item) => item.id === state.selectedElementId);
+            if (el) {
+              el.width = state.activeWidth;
+              redrawBoard();
+              socket.emit('element:update', el);
+            }
           }
-        }
-        sound.playClick();
+          sound.playClick();
+        });
       });
-    });
-
-    colorPopover.querySelectorAll('.width-btn').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        state.activeWidth = parseInt(btn.dataset.width, 10);
-        syncColorPopoverUI();
-        if (state.selectedElementId && canCurrentUserDraw()) {
-          const el = state.elements.find((item) => item.id === state.selectedElementId);
-          if (el) {
-            el.width = state.activeWidth;
-            redrawBoard();
-            socket.emit('element:update', el);
-          }
-        }
-        sound.playClick();
-      });
-    });
+    }
 
     // --- Rich Emoji Reaction Catalog & Bubble Popover Engine ---
     EMOJI_CATEGORIES = [
@@ -5216,35 +5474,11 @@
       });
     }
 
-    // Hover Bubble Pop-Up Behavior
-    if (reactionPopoverContainer) {
-      reactionPopoverContainer.addEventListener('mouseenter', () => {
-        if (reactionHoverCloseTimer) {
-          clearTimeout(reactionHoverCloseTimer);
-          reactionHoverCloseTimer = null;
-        }
-        if (!reactionPopoverContainer.classList.contains('open')) {
-          dismissAllPopovers();
-          reactionPopoverContainer.classList.add('open');
-        }
-      });
-
-      reactionPopoverContainer.addEventListener('mouseleave', () => {
-        reactionHoverCloseTimer = setTimeout(() => {
-          reactionPopoverContainer.classList.remove('open');
-        }, 280);
-      });
-    }
-
+    // Reaction & Emoji Popover Trigger (Stable click toggle - never auto-closes while choosing)
     if (reactionPopoverBtn) {
       reactionPopoverBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (reactionHoverCloseTimer) clearTimeout(reactionHoverCloseTimer);
-        const isOpen = reactionPopoverContainer ? reactionPopoverContainer.classList.contains('open') : false;
-        dismissAllPopovers();
-        if (!isOpen && reactionPopoverContainer) {
-          reactionPopoverContainer.classList.add('open');
-        }
+        togglePopover(reactionPopover, reactionPopoverBtn);
         sound.playClick();
       });
     }
@@ -5257,10 +5491,33 @@
       });
     }
 
+    // Protect all popovers and dropdown menus from click bubbling
+    document.querySelectorAll('.popover-menu, .dropdown-menu, #canvasPopoversMount').forEach((menu) => {
+      menu.addEventListener('click', (e) => e.stopPropagation());
+      menu.addEventListener('pointerdown', (e) => e.stopPropagation());
+      menu.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+    });
+
     // Dismiss Popovers on Outside Click
     window.addEventListener('click', (e) => {
-      if (!e.target.closest('.popover-container')) {
+      if (
+        !e.target.closest('.popover-container') &&
+        !e.target.closest('.dropdown-wrapper') &&
+        !e.target.closest('.popover-menu') &&
+        !e.target.closest('.dropdown-menu') &&
+        !e.target.closest('.chat-floating-tab') &&
+        !e.target.closest('.chatspace-panel') &&
+        !e.target.closest('#canvasPopoversMount')
+      ) {
         dismissAllPopovers();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      const openPopover = document.querySelector('.popover-menu.open, .dropdown-menu.open, .dropdown-menu.active');
+      if (openPopover) {
+        const activeBtn = document.querySelector('.dock-btn.popover-active');
+        alignPopoverToTrigger(openPopover, activeBtn);
       }
     });
   }
@@ -5304,7 +5561,7 @@
 
   dockButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (btn.id === 'shapePopoverBtn' || btn.id === 'brushPopoverBtn' || btn.id === 'eraserPopoverBtn' || btn.id === 'colorPopoverBtn') return;
+      if (btn.id === 'shapePopoverBtn' || btn.id === 'brushPopoverBtn' || btn.id === 'eraserPopoverBtn' || btn.id === 'colorPopoverBtn' || btn.id === 'reactionPopoverBtn') return;
       const tool = btn.dataset.tool;
       if (tool && tool !== 'select' && tool !== 'laser' && !canCurrentUserDraw()) {
         showToast('🎓 Presentation Mode: Only Host can draw on the canvas.', 'warning');
@@ -5417,7 +5674,8 @@
   // High-Res Export (2x HD) & JSON
   exportBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    exportMenu.parentElement.classList.toggle('active');
+    togglePopover(exportMenu, exportBtn);
+    sound.playClick();
   });
 
   function generateExportCanvas(scale = 2) {
@@ -6012,8 +6270,13 @@
     }
   });
 
-  // Global window wheel zoom interceptor (prevents browser full-page scaling on Ctrl+Wheel and Touchpad Pinch)
+  // Global window wheel zoom interceptor (prevents browser full-page scaling on Ctrl+Wheel and Touchpad Pinch inside canvas room)
   window.addEventListener('wheel', (e) => {
+    // If on landing screen, do not intercept wheel events so user can naturally scroll the landing page with mouse wheel
+    if (landingScreen && landingScreen.classList.contains('active')) {
+      return;
+    }
+
     const isScrollable = e.target.closest('#chatMessageList, #chatEmojiGridScroll, #reactionScrollArea, .reaction-catalog-grid, .modal-card, .shortcuts-card, .host-users-list, textarea');
     if (e.ctrlKey || e.metaKey || !isScrollable) {
       e.preventDefault();
@@ -6023,10 +6286,19 @@
     }
   }, { passive: false });
 
-  // Prevent browser viewport scaling on Safari/iOS trackpad/touch gestures so only canvas zooms
-  document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
-  document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
-  document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+  // Prevent browser viewport scaling on Safari/iOS trackpad/touch gestures so only canvas zooms inside the room
+  document.addEventListener('gesturestart', (e) => {
+    if (landingScreen && landingScreen.classList.contains('active')) return;
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('gesturechange', (e) => {
+    if (landingScreen && landingScreen.classList.contains('active')) return;
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('gestureend', (e) => {
+    if (landingScreen && landingScreen.classList.contains('active')) return;
+    e.preventDefault();
+  }, { passive: false });
 
   window.addEventListener('keyup', (e) => {
     if (e.key === ' ') {
@@ -6217,6 +6489,8 @@
     const userAvatar = (existing && existing.avatar) || avatar || '👋';
     showToast(`<strong>${escapeHtml(userName)}</strong> left the room`, 'leave', userAvatar);
     state.collaborators.delete(socketId);
+    state.remoteLiveDrafts.delete(socketId);
+    redrawDraftLayer();
     updateCollaboratorsUI();
     renderManageHostsModal();
   });
@@ -6291,6 +6565,20 @@
     addLaserPoint(screenPos.x, screenPos.y, data.color);
   });
 
+  // Real-time live in-progress stroke streaming from collaborators
+  socket.on('draw:lived', (data) => {
+    if (!data || !data.socketId) return;
+    state.remoteLiveDrafts.set(data.socketId, data);
+    redrawDraftLayer();
+  });
+
+  socket.on('draw:lived_end', (data) => {
+    if (data && data.socketId) {
+      state.remoteLiveDrafts.delete(data.socketId);
+    }
+    redrawDraftLayer();
+  });
+
   socket.on('element:added', (el) => {
     if (!state.elements.some((item) => item.id === el.id)) {
       state.elements.push(el);
@@ -6306,46 +6594,71 @@
     if (idx !== -1) state.elements[idx] = { ...state.elements[idx], ...updated };
     else state.elements.push(updated);
 
-    if (updated.type === 'sticky') {
+    const el = state.elements[idx] || updated;
+    const elType = (el && el.type) || updated.type;
+
+    if (elType === 'sticky') {
       let node = state.domElementsMap.get(updated.id);
-      if (!node) node = createStickyNoteNode(updated);
-      const textarea = node.querySelector('textarea');
-      if (textarea && textarea.value !== updated.text && document.activeElement !== textarea) {
-        textarea.value = updated.text || '';
-      }
-      if (updated.theme) node.className = `sticky-note-card theme-${updated.theme}`;
-      syncDomElementPosition(updated, node);
-    } else if (updated.type === 'text') {
-      let node = state.domElementsMap.get(updated.id);
-      if (!node) node = createTextBoxNode(updated);
-      const textarea = node.querySelector('textarea');
-      if (textarea && textarea.value !== updated.text && document.activeElement !== textarea) {
-        textarea.value = updated.text || '';
-      }
-      syncDomElementPosition(updated, node);
-    } else if (updated.type === 'code') {
-      let node = state.domElementsMap.get(updated.id);
-      if (!node) node = createCodeSnippetNode(updated);
-      const textarea = node.querySelector('.code-textarea');
-      if (textarea && textarea.value !== updated.code && document.activeElement !== textarea) {
-        textarea.value = updated.code || '';
-        const lineNums = node.querySelector('.code-line-numbers');
-        const footerLines = node.querySelector('.code-footer span:last-child');
-        if (lineNums) {
-          const count = (updated.code || '').split('\n').length;
-          lineNums.innerHTML = Array.from({ length: Math.max(1, count) }, (_, i) => i + 1).join('<br>');
-          if (footerLines) footerLines.textContent = `${count} ${count === 1 ? 'line' : 'lines'}`;
+      if (!node && el) node = createStickyNoteNode(el);
+      if (node) {
+        const textarea = node.querySelector('textarea');
+        if (textarea && updated.text !== undefined && textarea.value !== updated.text && document.activeElement !== textarea) {
+          textarea.value = updated.text || '';
         }
+        if (updated.theme) node.className = `sticky-note-card theme-${updated.theme}`;
+        syncDomElementPosition(el, node);
       }
-      const langSelect = node.querySelector('.code-lang-select');
-      if (langSelect && updated.language && langSelect.value !== updated.language) {
-        langSelect.value = updated.language;
+    } else if (elType === 'text') {
+      let node = state.domElementsMap.get(updated.id);
+      if (!node && el) node = createTextBoxNode(el);
+      if (node) {
+        const textarea = node.querySelector('textarea');
+        if (textarea) {
+          if (updated.text !== undefined && textarea.value !== updated.text && document.activeElement !== textarea) {
+            textarea.value = updated.text || '';
+          }
+          if (updated.fontSize) {
+            textarea.style.fontSize = `${updated.fontSize}px`;
+            const sizeBadge = node.querySelector('.board-text-size-val');
+            if (sizeBadge) sizeBadge.textContent = `${updated.fontSize}px`;
+          }
+          if (updated.color) {
+            textarea.style.color = updated.color;
+            node.querySelectorAll('.board-text-color-dot').forEach((d) => {
+              d.classList.toggle('active', d.dataset.color === updated.color);
+            });
+          }
+          // Auto-resize height so all multi-line text is visible
+          textarea.style.height = 'auto';
+          textarea.style.height = `${Math.max(30, textarea.scrollHeight)}px`;
+        }
+        syncDomElementPosition(el, node);
       }
-      const filenameInput = node.querySelector('.code-filename-input');
-      if (filenameInput && updated.filename && filenameInput.value !== updated.filename && document.activeElement !== filenameInput) {
-        filenameInput.value = updated.filename;
+    } else if (elType === 'code') {
+      let node = state.domElementsMap.get(updated.id);
+      if (!node && el) node = createCodeSnippetNode(el);
+      if (node) {
+        const textarea = node.querySelector('.code-textarea');
+        if (textarea && updated.code !== undefined && textarea.value !== updated.code && document.activeElement !== textarea) {
+          textarea.value = updated.code || '';
+          const lineNums = node.querySelector('.code-line-numbers');
+          const footerLines = node.querySelector('.code-footer span:last-child');
+          if (lineNums) {
+            const count = (updated.code || '').split('\n').length;
+            lineNums.innerHTML = Array.from({ length: Math.max(1, count) }, (_, i) => i + 1).join('<br>');
+            if (footerLines) footerLines.textContent = `${count} ${count === 1 ? 'line' : 'lines'}`;
+          }
+        }
+        const langSelect = node.querySelector('.code-lang-select');
+        if (langSelect && updated.language && langSelect.value !== updated.language) {
+          langSelect.value = updated.language;
+        }
+        const filenameInput = node.querySelector('.code-filename-input');
+        if (filenameInput && updated.filename && filenameInput.value !== updated.filename && document.activeElement !== filenameInput) {
+          filenameInput.value = updated.filename;
+        }
+        syncDomElementPosition(el, node);
       }
-      syncDomElementPosition(updated, node);
     } else {
       redrawBoard();
     }
@@ -6360,6 +6673,16 @@
         if (updated.type === 'sticky') createStickyNoteNode(updated);
         else if (updated.type === 'text') createTextBoxNode(updated);
         else if (updated.type === 'code') createCodeSnippetNode(updated);
+      }
+      if (updated.type === 'text') {
+        const node = state.domElementsMap.get(updated.id);
+        if (node) {
+          const textarea = node.querySelector('textarea');
+          if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${Math.max(30, textarea.scrollHeight)}px`;
+          }
+        }
       }
     });
     redrawBoard();
@@ -6893,19 +7216,19 @@
 
   function updateCollaboratorsUI() {
     collaboratorStack.innerHTML = '';
-    const maxVisible = 4;
-    let count = 0;
 
     const isSelfOnline = socket && socket.connected && navigator.onLine;
     const isSelfPrimary = isCurrentUserPrimaryHost();
     const isSelfCoHost = isCurrentUserCoHost();
+    const totalInRoom = state.collaborators.size + 1;
 
-    // Self Avatar
+    // Single Profile & Room Members Hub Avatar in Top Nav
     const selfAv = document.createElement('div');
-    selfAv.className = 'collaborator-avatar';
-    selfAv.style.setProperty('--c', state.user.color);
+    selfAv.className = 'collaborator-avatar nav-single-profile-avatar';
+    selfAv.id = 'navProfileAvatar';
+    selfAv.style.setProperty('--c', state.user.color || '#FF6B4A');
     setAvatarElement(selfAv, state.user.avatar, (state.user.name || 'Y').charAt(0).toUpperCase());
-    selfAv.title = `${state.user.name || state.user.username} (You)${isSelfPrimary ? ' 👑 Primary Host' : (isSelfCoHost ? ' ⭐ Co-Host' : '')} — Click to Manage Hosts`;
+    selfAv.title = `${state.user.name || state.user.username || 'You'} (You)${isSelfPrimary ? ' 👑 Primary Host' : (isSelfCoHost ? ' ⭐ Co-Host' : '')} · ${totalInRoom} in room — Click to view participants & roles`;
 
     // Host / Co-Host Crown / Star Badge
     if (isSelfPrimary) {
@@ -6927,92 +7250,31 @@
     selfStatus.className = `avatar-status-dot ${isSelfOnline ? 'online' : 'offline'}`;
     selfAv.appendChild(selfStatus);
 
+    // Participant count pill badge when > 1 participant in room
+    if (totalInRoom > 1) {
+      const countBadge = document.createElement('span');
+      countBadge.className = 'collaborator-count-pill';
+      countBadge.textContent = `👥 ${totalInRoom}`;
+      countBadge.title = `${totalInRoom} participants in room`;
+      selfAv.appendChild(countBadge);
+    }
+
     // Instant Name Tooltip on Cursor Hover
     const selfTooltip = document.createElement('div');
     selfTooltip.className = 'avatar-name-tooltip';
-    selfTooltip.innerHTML = `${isSelfPrimary ? '👑 ' : (isSelfCoHost ? '⭐ ' : '')}<span>${state.user.name || state.user.username} (You)</span>`;
+    selfTooltip.innerHTML = `${isSelfPrimary ? '👑 ' : (isSelfCoHost ? '⭐ ' : '')}<span>${state.user.name || state.user.username || 'You'} (${totalInRoom} in room)</span>`;
     selfAv.appendChild(selfTooltip);
 
+    // Click opens full participants modal (Room Members & Roles Hub)
     selfAv.addEventListener('click', (e) => {
       e.stopPropagation();
       openManageHostsModal();
     });
 
     collaboratorStack.appendChild(selfAv);
-    count++;
-
-    state.collaborators.forEach((peer) => {
-      if (count < maxVisible) {
-        const isPeerOnline = peer.isOffline !== true;
-        const isPeerPrimary = state.hostSessionId && peer.sessionId === state.hostSessionId;
-        const isPeerCo = !!(state.coHostSessionIds && state.coHostSessionIds.has(peer.sessionId));
-
-        const av = document.createElement('div');
-        av.className = 'collaborator-avatar';
-        av.style.setProperty('--c', peer.color || '#FF6B4A');
-        setAvatarElement(av, peer.avatar, (peer.name || 'C').charAt(0).toUpperCase());
-        av.title = `${peer.name}${isPeerPrimary ? ' 👑 Primary Host' : (isPeerCo ? ' ⭐ Co-Host' : '')} — ${isPeerOnline ? 'Connected' : 'Offline'}`;
-
-        // Host / Co-Host Badge
-        if (isPeerPrimary) {
-          const crown = document.createElement('span');
-          crown.className = 'avatar-crown-badge';
-          crown.textContent = '👑';
-          crown.title = 'Primary Host';
-          av.appendChild(crown);
-        } else if (isPeerCo) {
-          const star = document.createElement('span');
-          star.className = 'avatar-crown-badge';
-          star.textContent = '⭐';
-          star.title = 'Co-Host';
-          av.appendChild(star);
-        }
-
-        // Status dot badge
-        const peerStatus = document.createElement('span');
-        peerStatus.className = `avatar-status-dot ${isPeerOnline ? 'online' : 'offline'}`;
-        av.appendChild(peerStatus);
-
-        // Instant Name Tooltip on Cursor Hover
-        const peerTooltip = document.createElement('div');
-        peerTooltip.className = 'avatar-name-tooltip';
-        peerTooltip.innerHTML = `${isPeerPrimary ? '👑 ' : (isPeerCo ? '⭐ ' : '')}<span>${peer.name || 'Collaborator'}</span>`;
-        av.appendChild(peerTooltip);
-
-        av.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const totalInRoom = state.collaborators.size + 1;
-          if (totalInRoom > 3) {
-            openManageHostsModal();
-          } else {
-            if (peer.cursor) {
-              smoothFlyTo(peer.cursor.x, peer.cursor.y);
-              showToast(`Following ${peer.name}`);
-              sound.playClick();
-            } else {
-              openManageHostsModal();
-            }
-          }
-        });
-        collaboratorStack.appendChild(av);
-      }
-      count++;
-    });
-
-    if (count > maxVisible) {
-      const extra = document.createElement('div');
-      extra.className = 'collaborator-avatar avatar-count';
-      extra.textContent = `+${count - maxVisible}`;
-      extra.title = 'Click to view all participants & manage hosts';
-      extra.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openManageHostsModal();
-      });
-      collaboratorStack.appendChild(extra);
-    }
 
     if (chatOnlineStatus) {
-      chatOnlineStatus.textContent = isSelfOnline ? `🟢 ${count} online in room` : '🔴 Disconnected';
+      chatOnlineStatus.textContent = isSelfOnline ? `🟢 ${totalInRoom} online in room` : '🔴 Disconnected';
     }
   }
 
