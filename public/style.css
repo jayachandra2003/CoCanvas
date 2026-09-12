@@ -6190,7 +6190,7 @@ html, body {
 @media (max-width: 480px) {
   .brand-title { font-size: 1.05rem; }
   .collaborator-stack { display: flex !important; }
-  #clearBoardBtn { display: none; }
+  #clearBoardBtn { display: inline-flex !important; }
   .hero-secondary-btn { font-size: 0.78rem; }
   .avatar-picker-grid { grid-template-columns: repeat(4, 1fr); }
   .dock-btn { width: 34px; height: 34px; }

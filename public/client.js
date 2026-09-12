@@ -301,6 +301,7 @@
     undoStack: [],
     redoStack: [],
     collaborators: new Map(),
+    remoteLiveDrafts: new Map(),
     particles: [],
     radarPings: [],
     laserTrails: [],
@@ -3611,10 +3612,57 @@
     }
   }
 
+  function redrawDraftLayer() {
+    draftCtx.clearRect(0, 0, viewWidth, viewHeight);
+
+    // 1. Peer remote in-progress drawings
+    if (state.remoteLiveDrafts && state.remoteLiveDrafts.size > 0) {
+      state.remoteLiveDrafts.forEach((draft) => {
+        if (!draft) return;
+        if (ALL_BRUSH_TOOLS.includes(draft.tool) && draft.points && draft.points.length > 0) {
+          drawElement(draftCtx, {
+            type: draft.tool,
+            points: draft.points,
+            color: draft.color || '#FF6B4A',
+            width: draft.width || 3
+          });
+        } else if (ALL_SHAPE_TOOLS.includes(draft.tool) && draft.shapeStart && draft.shapeEnd) {
+          const previewEl = getShapeElementObject(draft.tool, draft.shapeStart, draft.shapeEnd);
+          if (previewEl) {
+            if (draft.color) previewEl.color = draft.color;
+            if (draft.width) previewEl.width = draft.width;
+            if (draft.fillStyle) previewEl.fillStyle = draft.fillStyle;
+            if (draft.fillColor) previewEl.fillColor = draft.fillColor;
+            drawElement(draftCtx, previewEl);
+          }
+        }
+      });
+    }
+
+    // 2. Local in-progress drawing
+    if (isDrawing) {
+      if (ALL_BRUSH_TOOLS.includes(state.activeTool) && activeStrokePoints.length > 0) {
+        drawElement(draftCtx, {
+          type: state.activeTool,
+          points: activeStrokePoints,
+          color: state.activeColor,
+          width: state.activeWidth
+        });
+      } else if (ALL_SHAPE_TOOLS.includes(state.activeTool) && currentShapeStart && lastClientPos) {
+        const previewElement = getShapeElementObject(state.activeTool, currentShapeStart, screenToWorld(lastClientPos.x, lastClientPos.y));
+        if (previewElement) drawElement(draftCtx, previewElement);
+      }
+    }
+  }
+
   function setupCanvasEvents() {
     boardCanvas.addEventListener('pointerdown', (e) => {
       dismissAllPopovers();
       lastClientPos = { x: e.clientX, y: e.clientY };
+
+      try {
+        boardCanvas.setPointerCapture(e.pointerId);
+      } catch (err) {}
 
       if (state.spacePressed || e.button === 1 || (state.activeTool === 'select' && e.button === 0 && !e.altKey && !hitTestAnyElement(screenToWorld(e.clientX, e.clientY)))) {
         state.isPanning = true;
@@ -3780,6 +3828,7 @@
       isDrawing = true;
       activeStrokePoints = [worldPos];
       currentShapeStart = worldPos;
+      redrawDraftLayer();
       sound.playClick();
     });
 
@@ -3832,21 +3881,34 @@
 
       if (ALL_BRUSH_TOOLS.includes(state.activeTool)) {
         activeStrokePoints.push(worldPos);
-        draftCtx.clearRect(0, 0, viewWidth, viewHeight);
-        drawElement(draftCtx, {
-          type: state.activeTool,
+        redrawDraftLayer();
+        socket.emit('draw:live', {
+          tool: state.activeTool,
           points: activeStrokePoints,
           color: state.activeColor,
           width: state.activeWidth
         });
       } else if (ALL_SHAPE_TOOLS.includes(state.activeTool)) {
-        draftCtx.clearRect(0, 0, viewWidth, viewHeight);
-        const previewElement = getShapeElementObject(state.activeTool, currentShapeStart, worldPos);
-        if (previewElement) drawElement(draftCtx, previewElement);
+        redrawDraftLayer();
+        socket.emit('draw:live', {
+          tool: state.activeTool,
+          shapeStart: currentShapeStart,
+          shapeEnd: worldPos,
+          color: state.activeColor,
+          width: state.activeWidth,
+          fillStyle: state.activeFillStyle || 'none',
+          fillColor: state.activeFillColor || '#FFFFFF'
+        });
       }
     });
 
-    window.addEventListener('pointerup', (e) => {
+    const finishDrawing = (e) => {
+      try {
+        if (e && e.pointerId && boardCanvas.hasPointerCapture(e.pointerId)) {
+          boardCanvas.releasePointerCapture(e.pointerId);
+        }
+      } catch (err) {}
+
       if (state.isPanning) {
         state.isPanning = false;
         boardCanvas.style.cursor = state.activeTool === 'select' ? 'default' : 'crosshair';
@@ -3865,11 +3927,18 @@
       if (!isDrawing) return;
       isDrawing = false;
       lastEraserPos = null;
-      draftCtx.clearRect(0, 0, viewWidth, viewHeight);
 
-      if (state.activeTool === 'eraser' || state.activeTool === 'laser') return;
+      // End live drawing preview for remote peers
+      socket.emit('draw:live_end', {});
 
-      const worldPos = screenToWorld(e.clientX, e.clientY);
+      if (state.activeTool === 'eraser' || state.activeTool === 'laser') {
+        redrawDraftLayer();
+        return;
+      }
+
+      const clientX = (e && typeof e.clientX === 'number') ? e.clientX : (lastClientPos ? lastClientPos.x : window.innerWidth / 2);
+      const clientY = (e && typeof e.clientY === 'number') ? e.clientY : (lastClientPos ? lastClientPos.y : window.innerHeight / 2);
+      const worldPos = screenToWorld(clientX, clientY);
 
       if (ALL_BRUSH_TOOLS.includes(state.activeTool)) {
         if (activeStrokePoints.length === 1) {
@@ -3893,7 +3962,11 @@
       }
       activeStrokePoints = [];
       currentShapeStart = null;
-    });
+      redrawDraftLayer();
+    };
+
+    window.addEventListener('pointerup', finishDrawing);
+    window.addEventListener('pointercancel', finishDrawing);
 
     boardCanvas.addEventListener('wheel', (e) => {
       e.preventDefault();
@@ -6441,6 +6514,8 @@
     const userAvatar = (existing && existing.avatar) || avatar || '👋';
     showToast(`<strong>${escapeHtml(userName)}</strong> left the room`, 'leave', userAvatar);
     state.collaborators.delete(socketId);
+    state.remoteLiveDrafts.delete(socketId);
+    redrawDraftLayer();
     updateCollaboratorsUI();
     renderManageHostsModal();
   });
@@ -6513,6 +6588,20 @@
   socket.on('laser:trailed', (data) => {
     const screenPos = worldToScreen(data.x, data.y);
     addLaserPoint(screenPos.x, screenPos.y, data.color);
+  });
+
+  // Real-time live in-progress stroke streaming from collaborators
+  socket.on('draw:lived', (data) => {
+    if (!data || !data.socketId) return;
+    state.remoteLiveDrafts.set(data.socketId, data);
+    redrawDraftLayer();
+  });
+
+  socket.on('draw:lived_end', (data) => {
+    if (data && data.socketId) {
+      state.remoteLiveDrafts.delete(data.socketId);
+    }
+    redrawDraftLayer();
   });
 
   socket.on('element:added', (el) => {
