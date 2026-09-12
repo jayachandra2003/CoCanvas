@@ -22,8 +22,23 @@ const rooms = new Map();
 
 function getOrCreateRoom(roomId) {
   if (!rooms.has(roomId)) {
+    const defaultPageId = 'page_1';
+    const pages = new Map();
+    pages.set(defaultPageId, {
+      id: defaultPageId,
+      number: 1,
+      name: 'Page 1',
+      elements: new Map(),
+      createdAt: Date.now()
+    });
+
     rooms.set(roomId, {
       elements: new Map(),
+      pages,
+      activePageId: defaultPageId,
+      canvasMode: 'fixed_page', // 'infinite' | 'fixed_page'
+      pageWidth: 1600,
+      pageHeight: 1000,
       users: new Map(),
       messages: [],
       hostSessionId: null,
@@ -35,6 +50,17 @@ function getOrCreateRoom(roomId) {
     });
   }
   return rooms.get(roomId);
+}
+
+function serializePages(room) {
+  if (!room || !room.pages) return [];
+  return Array.from(room.pages.values()).map((p) => ({
+    id: p.id,
+    number: p.number,
+    name: p.name,
+    elements: Array.from(p.elements.values()),
+    createdAt: p.createdAt
+  }));
 }
 
 function isUserAnyHost(room, userSessionId) {
@@ -88,6 +114,7 @@ io.on('connection', (socket) => {
       name: (user && (user.name || user.username)) ? (user.name || user.username) : 'Anonymous',
       avatar: (user && user.avatar) ? user.avatar : '🦊',
       color: (user && user.color) ? user.color : '#FF6B4A',
+      activePageId: room.activePageId || 'page_1',
       cursor: { x: 0, y: 0 },
       chatText: ''
     };
@@ -109,10 +136,16 @@ io.on('connection', (socket) => {
 
     const elementsArray = Array.from(room.elements.values());
     const usersArray = Array.from(room.users.values());
+    const pagesData = serializePages(room);
     
     socket.emit('room:init', {
       roomId,
       elements: elementsArray,
+      pages: pagesData,
+      activePageId: room.activePageId || 'page_1',
+      canvasMode: room.canvasMode || 'fixed_page',
+      pageWidth: room.pageWidth || 1600,
+      pageHeight: room.pageHeight || 1000,
       users: usersArray,
       messages: room.messages || [],
       selfId: socket.id,
@@ -324,13 +357,14 @@ io.on('connection', (socket) => {
 
   // 6. Real-Time Canvas Events
   socket.on('cursor:move', (data) => {
-    if (!currentRoomId) return;
+    if (!currentRoomId || !data) return;
     const room = rooms.get(currentRoomId);
     if (!room) return;
     
     const user = room.users.get(socket.id);
     if (user) {
       user.cursor = { x: data.x, y: data.y };
+      if (data.pageId) user.activePageId = data.pageId;
       if (data.chatText !== undefined) user.chatText = data.chatText;
     }
 
@@ -338,16 +372,18 @@ io.on('connection', (socket) => {
       socketId: socket.id,
       x: data.x,
       y: data.y,
+      pageId: data.pageId || (user && user.activePageId) || 'page_1',
       chatText: data.chatText
     });
   });
 
   socket.on('laser:trail', (data) => {
-    if (!currentRoomId) return;
+    if (!currentRoomId || !data) return;
     socket.to(currentRoomId).emit('laser:trailed', {
       socketId: socket.id,
       x: data.x,
       y: data.y,
+      pageId: data.pageId,
       color: data.color
     });
   });
@@ -369,13 +405,164 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Canvas Mode Switcher ('fixed_page' vs 'infinite')
+  socket.on('canvas:set_mode', ({ mode }) => {
+    if (!currentRoomId) return;
+    const room = getOrCreateRoom(currentRoomId);
+    if (!room) return;
+    if (mode !== 'fixed_page' && mode !== 'infinite') return;
+
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    const isHost = isUserAnyHost(room, userSessionId);
+    const isHostMode = room.mode === 'host';
+
+    // In Host Mode, only Host can change the canvas layout for all participants
+    if (isHostMode && isHost) {
+      room.canvasMode = mode;
+      io.to(currentRoomId).emit('canvas:mode_changed', {
+        canvasMode: room.canvasMode,
+        byHost: true,
+        hostName: (currentUser && currentUser.name) || 'Host'
+      });
+    } else if (!isHostMode) {
+      // In Friendly Mode, canvas layout mode is an independent personal preference!
+      // Do not broadcast to other users in the room.
+      const user = room.users.get(socket.id);
+      if (user) {
+        user.canvasMode = mode;
+      }
+    }
+  });
+
+  // Page Management: Create Page
+  socket.on('page:create', (data = {}) => {
+    if (!currentRoomId) return;
+    const room = getOrCreateRoom(currentRoomId);
+    if (!room) return;
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    if (!canUserModifyCanvas(room, userSessionId)) return;
+
+    const isHost = isUserAnyHost(room, userSessionId);
+    const isHostMode = room.mode === 'host';
+
+    const pageCount = room.pages ? room.pages.size : 0;
+    const nextNumber = pageCount + 1;
+    const newPageId = 'page_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+    const newPage = {
+      id: newPageId,
+      number: nextNumber,
+      name: data.name || `Page ${nextNumber}`,
+      elements: new Map(),
+      createdAt: Date.now()
+    };
+
+    if (!room.pages) room.pages = new Map();
+    room.pages.set(newPageId, newPage);
+
+    if (isHostMode && isHost) {
+      room.activePageId = newPageId;
+    }
+
+    io.to(currentRoomId).emit('page:created', {
+      page: {
+        id: newPage.id,
+        number: newPage.number,
+        name: newPage.name,
+        elements: [],
+        createdAt: newPage.createdAt
+      },
+      activePageId: newPageId,
+      pages: serializePages(room),
+      creatorSocketId: socket.id,
+      byHost: isHost && isHostMode
+    });
+  });
+
+  // Page Management: Switch Active Page
+  socket.on('page:switch', ({ pageId }) => {
+    if (!currentRoomId || !pageId) return;
+    const room = getOrCreateRoom(currentRoomId);
+    if (!room || !room.pages) return;
+
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    const isHost = isUserAnyHost(room, userSessionId);
+    const isHostMode = room.mode === 'host';
+
+    // In Host Mode, only Hosts can switch the presentation page for all spectators
+    if (isHostMode && isHost) {
+      if (room.pages.has(pageId)) {
+        room.activePageId = pageId;
+        io.to(currentRoomId).emit('page:switched', {
+          activePageId: pageId,
+          byHost: true,
+          hostName: (currentUser && currentUser.name) || 'Host'
+        });
+      }
+    } else if (!isHostMode) {
+      // In Friendly Mode, page switching is completely independent per user!
+      // Each collaborator can work on their own page without forcing others to move.
+      const user = room.users.get(socket.id);
+      if (user && room.pages.has(pageId)) {
+        user.activePageId = pageId;
+        socket.to(currentRoomId).emit('user:page_changed', {
+          socketId: socket.id,
+          activePageId: pageId
+        });
+      }
+    }
+  });
+
+  // Page Management: Delete Page
+  socket.on('page:delete', ({ pageId }) => {
+    if (!currentRoomId || !pageId) return;
+    const room = getOrCreateRoom(currentRoomId);
+    if (!room || !room.pages || room.pages.size <= 1) return;
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    if (!canUserModifyCanvas(room, userSessionId)) return;
+
+    // Delete elements belonging to this page
+    for (const [elId, el] of room.elements.entries()) {
+      if (el.pageId === pageId) {
+        room.elements.delete(elId);
+      }
+    }
+
+    room.pages.delete(pageId);
+
+    // Re-number remaining pages
+    let num = 1;
+    let fallbackActiveId = null;
+    for (const p of room.pages.values()) {
+      p.number = num++;
+      if (!fallbackActiveId) fallbackActiveId = p.id;
+    }
+
+    if (room.activePageId === pageId) {
+      room.activePageId = fallbackActiveId;
+    }
+
+    io.to(currentRoomId).emit('page:deleted', {
+      deletedPageId: pageId,
+      activePageId: room.activePageId,
+      pages: serializePages(room)
+    });
+  });
+
   socket.on('element:add', (element) => {
     if (!currentRoomId || !element || !element.id) return;
     const room = getOrCreateRoom(currentRoomId);
     const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
     if (!canUserModifyCanvas(room, userSessionId)) return;
 
+    if (!element.pageId) {
+      element.pageId = room.activePageId || 'page_1';
+    }
+
     room.elements.set(element.id, element);
+    if (room.pages && room.pages.has(element.pageId)) {
+      room.pages.get(element.pageId).elements.set(element.id, element);
+    }
+
     socket.to(currentRoomId).emit('element:added', element);
   });
 
@@ -385,15 +572,21 @@ io.on('connection', (socket) => {
     const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
     if (!canUserModifyCanvas(room, userSessionId)) return;
 
+    let merged;
     if (room.elements.has(updatedElement.id)) {
       const existing = room.elements.get(updatedElement.id);
-      const merged = { ...existing, ...updatedElement };
+      merged = { ...existing, ...updatedElement };
       room.elements.set(updatedElement.id, merged);
-      socket.to(currentRoomId).emit('element:updated', merged);
     } else {
-      room.elements.set(updatedElement.id, updatedElement);
-      socket.to(currentRoomId).emit('element:updated', updatedElement);
+      merged = updatedElement;
+      room.elements.set(updatedElement.id, merged);
     }
+
+    if (merged.pageId && room.pages && room.pages.has(merged.pageId)) {
+      room.pages.get(merged.pageId).elements.set(merged.id, merged);
+    }
+
+    socket.to(currentRoomId).emit('element:updated', merged);
   });
 
   socket.on('elements:batch_update', (elements) => {
@@ -403,7 +596,13 @@ io.on('connection', (socket) => {
     if (!canUserModifyCanvas(room, userSessionId)) return;
 
     elements.forEach((el) => {
-      if (el && el.id) room.elements.set(el.id, el);
+      if (el && el.id) {
+        if (!el.pageId) el.pageId = room.activePageId || 'page_1';
+        room.elements.set(el.id, el);
+        if (room.pages && room.pages.has(el.pageId)) {
+          room.pages.get(el.pageId).elements.set(el.id, el);
+        }
+      }
     });
     socket.to(currentRoomId).emit('elements:batch_updated', elements);
   });
@@ -414,18 +613,39 @@ io.on('connection', (socket) => {
     const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
     if (!canUserModifyCanvas(room, userSessionId)) return;
 
+    const el = room.elements.get(elementId);
+    if (el && el.pageId && room.pages && room.pages.has(el.pageId)) {
+      room.pages.get(el.pageId).elements.delete(elementId);
+    }
     room.elements.delete(elementId);
     socket.to(currentRoomId).emit('element:deleted', elementId);
   });
 
-  socket.on('elements:clear', () => {
+  socket.on('elements:clear', (data = {}) => {
     if (!currentRoomId) return;
     const room = getOrCreateRoom(currentRoomId);
     const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
     if (!canUserModifyCanvas(room, userSessionId)) return;
 
-    room.elements.clear();
-    socket.to(currentRoomId).emit('elements:cleared');
+    const targetPageId = data.pageId || (room.canvasMode === 'fixed_page' ? room.activePageId : null);
+
+    if (targetPageId && room.pages && room.pages.has(targetPageId)) {
+      room.pages.get(targetPageId).elements.clear();
+      for (const [elId, el] of room.elements.entries()) {
+        if (el.pageId === targetPageId) {
+          room.elements.delete(elId);
+        }
+      }
+      socket.to(currentRoomId).emit('elements:cleared', { pageId: targetPageId });
+    } else {
+      room.elements.clear();
+      if (room.pages) {
+        for (const p of room.pages.values()) {
+          p.elements.clear();
+        }
+      }
+      socket.to(currentRoomId).emit('elements:cleared', {});
+    }
   });
 
   socket.on('reaction:emit', (reactionData) => {

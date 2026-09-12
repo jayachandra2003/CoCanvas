@@ -318,7 +318,12 @@
     isChatOpen: false,
     unreadChatCount: 0,
     roomMode: 'friendly', // 'friendly' (all draw) | 'host' (presentation mode, only hosts draw)
-    showRemoteCursors: localStorage.getItem('cocanvas_show_remote_cursors') !== 'false'
+    showRemoteCursors: localStorage.getItem('cocanvas_show_remote_cursors') !== 'false',
+    canvasMode: 'fixed_page', // 'fixed_page' (Document/Slide Windows) | 'infinite' (Playground)
+    pages: [{ id: 'page_1', number: 1, name: 'Page 1', elements: [], createdAt: Date.now() }],
+    activePageId: 'page_1',
+    pageWidth: 1600,
+    pageHeight: 1000
   };
 
   // Sync avatar index
@@ -329,6 +334,24 @@
   // Screens
   const landingScreen = document.getElementById('landingScreen');
   const whiteboardScreen = document.getElementById('whiteboardScreen');
+
+  // Canvas Mode & Multi-Page Navigation Elements
+  const canvasModePill = document.getElementById('canvasModePill');
+  const btnModeFixedPage = document.getElementById('btnModeFixedPage');
+  const btnModeInfiniteCanvas = document.getElementById('btnModeInfiniteCanvas');
+  const fixedPageTag = document.getElementById('fixedPageTag');
+  const fixedPageTagTitle = document.getElementById('fixedPageTagTitle');
+  const pageNavDock = document.getElementById('pageNavDock');
+  const btnPrevPage = document.getElementById('btnPrevPage');
+  const btnNextPage = document.getElementById('btnNextPage');
+  const pageSelectorWrapper = document.getElementById('pageSelectorWrapper');
+  const pageSelectorBtn = document.getElementById('pageSelectorBtn');
+  const pageSelectorLabel = document.getElementById('pageSelectorLabel');
+  const pageDropdownMenu = document.getElementById('pageDropdownMenu');
+  const pageDropdownList = document.getElementById('pageDropdownList');
+  const btnNewPage = document.getElementById('btnNewPage');
+  const btnFitPage = document.getElementById('btnFitPage');
+  const btnDeletePage = document.getElementById('btnDeletePage');
 
   // Theme Elements
   const landingThemeToggleBtn = document.getElementById('landingThemeToggleBtn');
@@ -849,39 +872,155 @@
   // --- 8. Canvas Rendering Engine & Viewport Culling ---
   function renderGrid() {
     gridCtx.clearRect(0, 0, viewWidth, viewHeight);
-    if (state.gridMode === 'blank') return;
 
     const isDark = currentTheme === 'dark';
+    const isFixedPage = state.canvasMode === 'fixed_page';
     const baseGridSize = 32;
     const scaledGridSize = baseGridSize * state.zoom;
     const step = scaledGridSize < 16 ? scaledGridSize * 2 : scaledGridSize;
-    const startX = (state.panX % step + step) % step;
-    const startY = (state.panY % step + step) % step;
 
-    if (state.gridMode === 'dots') {
-      gridCtx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.12)';
-      const dotRadius = Math.max(1, Math.min(2.2, 1.2 * state.zoom));
+    if (isFixedPage) {
+      // 1. Fixed Multi-Page Mode: Render Page Boundary Card & Outer Shaded Area
+      const pw = state.pageWidth || 1600;
+      const ph = state.pageHeight || 1000;
+      const pTopLeft = worldToScreen(0, 0);
+      const pBottomRight = worldToScreen(pw, ph);
+      const cardW = pBottomRight.x - pTopLeft.x;
+      const cardH = pBottomRight.y - pTopLeft.y;
+      const borderRadius = Math.min(18 * state.zoom, 18);
+
+      // Outer Canvas Background (Soft textured contrast for page backdrop)
+      gridCtx.fillStyle = isDark ? '#0C0E14' : '#E2E8F0';
+      gridCtx.fillRect(0, 0, viewWidth, viewHeight);
+
+      // Outer Soft Shading Dots (Subtle pattern in the workspace beyond the page)
+      gridCtx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)';
+      const outerStep = Math.max(24, step);
+      const outerStartX = (state.panX % outerStep + outerStep) % outerStep;
+      const outerStartY = (state.panY % outerStep + outerStep) % outerStep;
       gridCtx.beginPath();
-      for (let x = startX; x < viewWidth; x += step) {
-        for (let y = startY; y < viewHeight; y += step) {
-          gridCtx.moveTo(x + dotRadius, y);
-          gridCtx.arc(x, y, dotRadius, 0, Math.PI * 2);
+      for (let x = outerStartX; x < viewWidth; x += outerStep) {
+        for (let y = outerStartY; y < viewHeight; y += outerStep) {
+          gridCtx.moveTo(x + 1, y);
+          gridCtx.arc(x, y, 1, 0, Math.PI * 2);
         }
       }
       gridCtx.fill();
-    } else if (state.gridMode === 'grid') {
-      gridCtx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.09)' : 'rgba(0, 0, 0, 0.07)';
-      gridCtx.lineWidth = 1;
+
+      // Page Drop Shadow
+      gridCtx.save();
+      gridCtx.shadowColor = isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.2)';
+      gridCtx.shadowBlur = 24 * Math.min(1.5, Math.max(0.5, state.zoom));
+      gridCtx.shadowOffsetY = 10 * Math.min(1.5, Math.max(0.5, state.zoom));
+
+      // Page Card Background
+      gridCtx.fillStyle = isDark ? '#1E293B' : '#FFFFFF';
       gridCtx.beginPath();
-      for (let x = startX; x < viewWidth; x += step) {
-        gridCtx.moveTo(x, 0);
-        gridCtx.lineTo(x, viewHeight);
-      }
-      for (let y = startY; y < viewHeight; y += step) {
-        gridCtx.moveTo(0, y);
-        gridCtx.lineTo(viewWidth, y);
-      }
+      if (gridCtx.roundRect) gridCtx.roundRect(pTopLeft.x, pTopLeft.y, cardW, cardH, borderRadius);
+      else gridCtx.rect(pTopLeft.x, pTopLeft.y, cardW, cardH);
+      gridCtx.fill();
+      gridCtx.restore();
+
+      // Page Border Stroke
+      gridCtx.save();
+      gridCtx.strokeStyle = isDark ? '#475569' : '#000000';
+      gridCtx.lineWidth = Math.max(1.5, 2 * state.zoom);
+      gridCtx.beginPath();
+      if (gridCtx.roundRect) gridCtx.roundRect(pTopLeft.x, pTopLeft.y, cardW, cardH, borderRadius);
+      else gridCtx.rect(pTopLeft.x, pTopLeft.y, cardW, cardH);
       gridCtx.stroke();
+      gridCtx.restore();
+
+      // Position Fixed Page Tag Header Overlay
+      if (fixedPageTag) {
+        const activePage = (state.pages && state.pages.find(p => p.id === state.activePageId)) || { number: 1, name: 'Page 1' };
+        const totalPages = (state.pages && state.pages.length) || 1;
+        if (fixedPageTagTitle) {
+          fixedPageTagTitle.textContent = `${activePage.name || ('Page ' + activePage.number)} (${activePage.number}/${totalPages}) · ${pw} × ${ph}`;
+        }
+        fixedPageTag.classList.remove('hidden');
+        fixedPageTag.style.left = `${Math.max(8, pTopLeft.x)}px`;
+        fixedPageTag.style.top = `${Math.max(68, pTopLeft.y - 34)}px`;
+      }
+
+      // Clip inner grid to the page boundaries
+      if (state.gridMode !== 'blank') {
+        gridCtx.save();
+        gridCtx.beginPath();
+        if (gridCtx.roundRect) gridCtx.roundRect(pTopLeft.x, pTopLeft.y, cardW, cardH, borderRadius);
+        else gridCtx.rect(pTopLeft.x, pTopLeft.y, cardW, cardH);
+        gridCtx.clip();
+
+        const pageStartX = pTopLeft.x + ((state.panX - pTopLeft.x) % step + step) % step;
+        const pageStartY = pTopLeft.y + ((state.panY - pTopLeft.y) % step + step) % step;
+
+        if (state.gridMode === 'dots') {
+          gridCtx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.14)';
+          const dotRadius = Math.max(1, Math.min(2.2, 1.2 * state.zoom));
+          gridCtx.beginPath();
+          for (let x = pageStartX; x < pBottomRight.x; x += step) {
+            for (let y = pageStartY; y < pBottomRight.y; y += step) {
+              if (x >= pTopLeft.x && y >= pTopLeft.y) {
+                gridCtx.moveTo(x + dotRadius, y);
+                gridCtx.arc(x, y, dotRadius, 0, Math.PI * 2);
+              }
+            }
+          }
+          gridCtx.fill();
+        } else if (state.gridMode === 'grid') {
+          gridCtx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)';
+          gridCtx.lineWidth = 1;
+          gridCtx.beginPath();
+          for (let x = pageStartX; x < pBottomRight.x; x += step) {
+            if (x >= pTopLeft.x) {
+              gridCtx.moveTo(x, pTopLeft.y);
+              gridCtx.lineTo(x, pBottomRight.y);
+            }
+          }
+          for (let y = pageStartY; y < pBottomRight.y; y += step) {
+            if (y >= pTopLeft.y) {
+              gridCtx.moveTo(pTopLeft.x, y);
+              gridCtx.lineTo(pBottomRight.x, y);
+            }
+          }
+          gridCtx.stroke();
+        }
+
+        gridCtx.restore();
+      }
+    } else {
+      // 2. Infinite Canvas Playground Mode
+      if (fixedPageTag) fixedPageTag.classList.add('hidden');
+      if (state.gridMode === 'blank') return;
+
+      const startX = (state.panX % step + step) % step;
+      const startY = (state.panY % step + step) % step;
+
+      if (state.gridMode === 'dots') {
+        gridCtx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.12)';
+        const dotRadius = Math.max(1, Math.min(2.2, 1.2 * state.zoom));
+        gridCtx.beginPath();
+        for (let x = startX; x < viewWidth; x += step) {
+          for (let y = startY; y < viewHeight; y += step) {
+            gridCtx.moveTo(x + dotRadius, y);
+            gridCtx.arc(x, y, dotRadius, 0, Math.PI * 2);
+          }
+        }
+        gridCtx.fill();
+      } else if (state.gridMode === 'grid') {
+        gridCtx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.09)' : 'rgba(0, 0, 0, 0.07)';
+        gridCtx.lineWidth = 1;
+        gridCtx.beginPath();
+        for (let x = startX; x < viewWidth; x += step) {
+          gridCtx.moveTo(x, 0);
+          gridCtx.lineTo(x, viewHeight);
+        }
+        for (let y = startY; y < viewHeight; y += step) {
+          gridCtx.moveTo(0, y);
+          gridCtx.lineTo(viewWidth, y);
+        }
+        gridCtx.stroke();
+      }
     }
   }
 
@@ -1708,7 +1847,16 @@
 
   function redrawBoard() {
     boardCtx.clearRect(0, 0, viewWidth, viewHeight);
-    state.elements.forEach((el) => {
+
+    const isFixedPage = state.canvasMode === 'fixed_page';
+    const activePageId = state.activePageId || 'page_1';
+
+    // Page Isolation: In Fixed Page Mode, only render elements belonging to active page
+    const visibleElements = isFixedPage
+      ? state.elements.filter((el) => !el.pageId || el.pageId === activePageId)
+      : state.elements;
+
+    visibleElements.forEach((el) => {
       if (el.type !== 'sticky' && el.type !== 'text') {
         const bounds = getElementBounds(el);
         if (isElementInViewport(bounds)) {
@@ -1716,6 +1864,7 @@
         }
       }
     });
+
     updateSelectionBoxPosition();
     renderMinimap();
   }
@@ -1803,6 +1952,15 @@
   // --- 9. DOM Overlays (Sticky Notes, Text Boxes & Code Panels) ---
   function syncDomElementPosition(el, domNode) {
     if (!domNode) return;
+
+    // Page Isolation check: Hide DOM elements belonging to other pages in fixed_page mode
+    if (state.canvasMode === 'fixed_page' && el.pageId && el.pageId !== (state.activePageId || 'page_1')) {
+      domNode.style.display = 'none';
+      return;
+    } else {
+      domNode.style.display = '';
+    }
+
     const screenPos = worldToScreen(el.x, el.y);
     domNode.style.transform = `translate(${screenPos.x}px, ${screenPos.y}px) scale(${state.zoom})`;
     if (el.type === 'code') {
@@ -3078,8 +3236,15 @@
 
     // Remote Cursors (Rendered if user has not toggled them hidden)
     if (state.showRemoteCursors !== false) {
+      const isFixedPage = state.canvasMode === 'fixed_page';
+      const activePageId = state.activePageId || 'page_1';
+
       state.collaborators.forEach((peer) => {
         if (!peer.cursor) return;
+        // Page Isolation: In Fixed Page Mode, only render cursors of collaborators on the same active page
+        if (isFixedPage && peer.activePageId && peer.activePageId !== activePageId) {
+          return;
+        }
         const screenPos = worldToScreen(peer.cursor.x, peer.cursor.y);
         const color = peer.color || '#FF6B4A';
 
@@ -3310,6 +3475,7 @@
       socket.emit('cursor:move', {
         x: worldPos.x,
         y: worldPos.y,
+        pageId: state.activePageId || 'page_1',
         chatText: chatText !== undefined ? chatText : (state.localChatActive ? cursorChatInput.value : '')
       });
     }
@@ -3617,8 +3783,16 @@
 
     // 1. Peer remote in-progress drawings
     if (state.remoteLiveDrafts && state.remoteLiveDrafts.size > 0) {
+      const isFixedPage = state.canvasMode === 'fixed_page';
+      const activePageId = state.activePageId || 'page_1';
+
       state.remoteLiveDrafts.forEach((draft) => {
         if (!draft) return;
+        // Page Isolation: In Fixed Page Mode, only render live draft strokes on the active page
+        if (isFixedPage && draft.pageId && draft.pageId !== activePageId) {
+          return;
+        }
+
         if (ALL_BRUSH_TOOLS.includes(draft.tool) && draft.points && draft.points.length > 0) {
           drawElement(draftCtx, {
             type: draft.tool,
@@ -3712,6 +3886,7 @@
         const newSticky = {
           id: 'sticky_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           type: 'sticky',
+          pageId: state.activePageId || 'page_1',
           x: worldPos.x - 100,
           y: worldPos.y - 80,
           theme: 'yellow',
@@ -3731,6 +3906,7 @@
         const newText = {
           id: 'text_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           type: 'text',
+          pageId: state.activePageId || 'page_1',
           x: worldPos.x,
           y: worldPos.y,
           text: '',
@@ -3752,6 +3928,7 @@
         const newCode = {
           id: 'code_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           type: 'code',
+          pageId: state.activePageId || 'page_1',
           x: worldPos.x - 280,
           y: worldPos.y - 150,
           w: 560,
@@ -3865,7 +4042,7 @@
 
       if (state.activeTool === 'laser') {
         addLaserPoint(e.clientX, e.clientY, state.user.color);
-        socket.emit('laser:trail', { x: worldPos.x, y: worldPos.y, color: state.user.color });
+        socket.emit('laser:trail', { x: worldPos.x, y: worldPos.y, pageId: state.activePageId || 'page_1', color: state.user.color });
         return;
       }
 
@@ -3884,6 +4061,7 @@
         redrawDraftLayer();
         socket.emit('draw:live', {
           tool: state.activeTool,
+          pageId: state.activePageId || 'page_1',
           points: activeStrokePoints,
           color: state.activeColor,
           width: state.activeWidth
@@ -3892,6 +4070,7 @@
         redrawDraftLayer();
         socket.emit('draw:live', {
           tool: state.activeTool,
+          pageId: state.activePageId || 'page_1',
           shapeStart: currentShapeStart,
           shapeEnd: worldPos,
           color: state.activeColor,
@@ -3982,6 +4161,7 @@
       socket.emit('radar:ping', {
         x: worldPos.x,
         y: worldPos.y,
+        pageId: state.activePageId || 'page_1',
         color: state.user.color,
         userName: state.user.name || state.user.username
       });
@@ -4046,8 +4226,13 @@
 
   function hitTestAnyElement(worldPos) {
     const threshold = 18 / state.zoom;
+    const isFixed = state.canvasMode === 'fixed_page';
+    const activePage = state.activePageId || 'page_1';
+
     for (let i = state.elements.length - 1; i >= 0; i--) {
       const el = state.elements[i];
+      if (isFixed && el.pageId && el.pageId !== activePage) continue;
+
       if (ALL_2D_SHAPES.includes(el.type) || el.type === 'image') {
         const minX = Math.min(el.x, el.x + (el.w || 0));
         const maxX = Math.max(el.x, el.x + (el.w || 0));
@@ -4069,10 +4254,12 @@
 
   function getShapeElementObject(tool, start, end) {
     const id = 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+    const pageId = state.activePageId || 'page_1';
+
     if (tool === 'line' || tool === 'arrow' || tool === 'curve') {
       const dist = Math.hypot(end.x - start.x, end.y - start.y);
       if (dist < 3) return null;
-      return { id, type: tool, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color: state.activeColor, width: state.activeWidth };
+      return { id, type: tool, pageId, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color: state.activeColor, width: state.activeWidth };
     } else if (ALL_2D_SHAPES.includes(tool)) {
       const x = Math.min(start.x, end.x);
       const y = Math.min(start.y, end.y);
@@ -4082,6 +4269,7 @@
       return {
         id,
         type: tool,
+        pageId,
         x,
         y,
         w,
@@ -4096,6 +4284,9 @@
   }
 
   function commitNewElement(el) {
+    if (!el.pageId) {
+      el.pageId = state.activePageId || 'page_1';
+    }
     state.elements.push(el);
     state.undoStack.push({ type: 'add', element: el });
     state.redoStack = [];
@@ -4107,10 +4298,13 @@
 
   function eraseAtPoint(worldPos) {
     const eraserRadius = (state.activeEraserSize || 20) / 2;
+    const isFixed = state.canvasMode === 'fixed_page';
+    const activePage = state.activePageId || 'page_1';
     let erasedAny = false;
 
     for (let i = state.elements.length - 1; i >= 0; i--) {
       const el = state.elements[i];
+      if (isFixed && el.pageId && el.pageId !== activePage) continue;
 
       if (ALL_BRUSH_TOOLS.includes(el.type)) {
         if (!el.points || el.points.length === 0) continue;
@@ -4210,6 +4404,7 @@
             const newSubEl = {
               id: 'stroke_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
               type: el.type,
+              pageId: el.pageId || state.activePageId || 'page_1',
               points: cleanRuns[k],
               color: el.color,
               width: el.width
@@ -5541,6 +5736,7 @@
       emoji,
       x: worldPos.x,
       y: worldPos.y,
+      pageId: state.activePageId || 'page_1',
       userName: state.user.name || state.user.username
     });
   }
@@ -5932,22 +6128,274 @@
     reader.readAsText(file);
   });
 
+  // --- Page Management & Canvas Layout Mode (Fixed Window Mode & Infinite Playground) ---
+  function fitPageToScreen() {
+    if (state.canvasMode !== 'fixed_page') return;
+    const pw = state.pageWidth || 1600;
+    const ph = state.pageHeight || 1000;
+    const isMobile = window.innerWidth < 768;
+    const horizontalMargin = isMobile ? 14 : 48;
+    const topMargin = isMobile ? 68 : 80;
+    const bottomMargin = isMobile ? 120 : 130;
+
+    const availableW = Math.max(200, viewWidth - horizontalMargin * 2);
+    const availableH = Math.max(200, viewHeight - topMargin - bottomMargin);
+
+    const targetZoom = Math.min(1.2, Math.max(0.18, Math.min(availableW / pw, availableH / ph)));
+    const targetWorldX = pw / 2;
+    const targetWorldY = ph / 2;
+    smoothFlyTo(targetWorldX, targetWorldY, targetZoom);
+  }
+
+  function updateCanvasModeUI() {
+    const isFixed = state.canvasMode === 'fixed_page';
+    if (btnModeFixedPage) btnModeFixedPage.classList.toggle('active', isFixed);
+    if (btnModeInfiniteCanvas) btnModeInfiniteCanvas.classList.toggle('active', !isFixed);
+    if (pageNavDock) pageNavDock.classList.toggle('hidden', !isFixed);
+    if (fixedPageTag) fixedPageTag.classList.toggle('hidden', !isFixed);
+  }
+
+  function updatePageNavUI() {
+    if (state.canvasMode !== 'fixed_page') {
+      if (pageNavDock) pageNavDock.classList.add('hidden');
+      if (pageDropdownMenu) pageDropdownMenu.classList.add('hidden');
+      return;
+    }
+    if (pageNavDock) pageNavDock.classList.remove('hidden');
+
+    const pages = (state.pages && state.pages.length > 0) ? state.pages : [{ id: 'page_1', number: 1, name: 'Page 1' }];
+    const activePage = pages.find((p) => p.id === state.activePageId) || pages[0];
+    const currentIndex = Math.max(0, pages.findIndex((p) => p.id === activePage.id));
+
+    if (pageSelectorLabel) {
+      pageSelectorLabel.textContent = `${activePage.name || ('Page ' + (currentIndex + 1))} (${currentIndex + 1} / ${pages.length})`;
+    }
+
+    if (btnPrevPage) btnPrevPage.disabled = (currentIndex <= 0);
+    if (btnNextPage) btnNextPage.disabled = (currentIndex >= pages.length - 1);
+    if (btnDeletePage) btnDeletePage.disabled = (pages.length <= 1);
+
+    // Update fixed page tag header
+    if (fixedPageTagTitle) {
+      fixedPageTagTitle.textContent = `${activePage.name || ('Page ' + (currentIndex + 1))} (${currentIndex + 1}/${pages.length}) · ${state.pageWidth || 1600} × ${state.pageHeight || 1000}`;
+    }
+
+    // Populate Page Dropdown Menu
+    if (pageDropdownList) {
+      pageDropdownList.innerHTML = '';
+      pages.forEach((p, idx) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        const isActive = p.id === state.activePageId;
+        item.className = `page-dropdown-item ${isActive ? 'active' : ''}`;
+        
+        // Count elements on this page
+        const elCount = state.elements.filter((el) => (!el.pageId && idx === 0) || el.pageId === p.id).length;
+
+        item.innerHTML = `
+          <span>📄 ${escapeHtml(p.name || ('Page ' + (idx + 1)))}</span>
+          <span class="page-item-badge">${elCount} el</span>
+        `;
+
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          switchPage(p.id);
+          if (pageDropdownMenu) pageDropdownMenu.classList.add('hidden');
+        });
+
+        pageDropdownList.appendChild(item);
+      });
+    }
+  }
+
+  function switchPage(pageId) {
+    if (!pageId || pageId === state.activePageId) return;
+    state.activePageId = pageId;
+    clearSelection();
+    updatePageNavUI();
+    renderGrid();
+    redrawBoard();
+    redrawDraftLayer();
+    syncAllDomElementPositions();
+    sound.playClick();
+    if (lastClientPos) {
+      broadcastCursor(lastClientPos.x, lastClientPos.y);
+    }
+    socket.emit('page:switch', { pageId });
+  }
+
+  function createPage() {
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Only Host can add pages.', 'warning');
+      return;
+    }
+    sound.playPop();
+    socket.emit('page:create', {});
+  }
+
+  function deletePage(targetPageId) {
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Only Host can delete pages.', 'warning');
+      return;
+    }
+    const pageId = targetPageId || state.activePageId;
+    if (!state.pages || state.pages.length <= 1) {
+      showToast('Cannot delete the only page in the room.', 'warning');
+      return;
+    }
+    const targetPage = state.pages.find((p) => p.id === pageId) || { number: 1, name: 'Page' };
+    const pageElementCount = state.elements.filter((el) => el.pageId === pageId).length;
+
+    const confirmMsg = pageElementCount > 0
+      ? `Delete "${targetPage.name || ('Page ' + targetPage.number)}" containing ${pageElementCount} elements?`
+      : `Delete "${targetPage.name || ('Page ' + targetPage.number)}"?`;
+
+    if (confirm(confirmMsg)) {
+      sound.playPop();
+      socket.emit('page:delete', { pageId });
+    }
+  }
+
+  function setCanvasMode(mode) {
+    if (mode !== 'fixed_page' && mode !== 'infinite') return;
+    if (state.roomMode === 'host' && !isCurrentUserHost()) {
+      showToast('🎓 Presentation Mode: Only Host can toggle canvas layout.', 'warning');
+      return;
+    }
+    state.canvasMode = mode;
+    updateCanvasModeUI();
+    updatePageNavUI();
+    renderGrid();
+    redrawBoard();
+    syncAllDomElementPositions();
+    sound.playClick();
+
+    if (mode === 'fixed_page') {
+      fitPageToScreen();
+      showToast('📄 Switched to Fixed Multi-Page Mode');
+    } else {
+      showToast('🌐 Switched to Infinite Playground Mode');
+    }
+
+    socket.emit('canvas:set_mode', { mode });
+  }
+
+  // Canvas Mode & Page Navigation Event Listeners
+  if (btnModeFixedPage) {
+    btnModeFixedPage.addEventListener('click', () => setCanvasMode('fixed_page'));
+  }
+  if (btnModeInfiniteCanvas) {
+    btnModeInfiniteCanvas.addEventListener('click', () => setCanvasMode('infinite'));
+  }
+
+  if (btnPrevPage) {
+    btnPrevPage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pages = state.pages || [];
+      const currentIdx = pages.findIndex((p) => p.id === state.activePageId);
+      if (currentIdx > 0) {
+        switchPage(pages[currentIdx - 1].id);
+      }
+    });
+  }
+
+  if (btnNextPage) {
+    btnNextPage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pages = state.pages || [];
+      const currentIdx = pages.findIndex((p) => p.id === state.activePageId);
+      if (currentIdx !== -1 && currentIdx < pages.length - 1) {
+        switchPage(pages[currentIdx + 1].id);
+      }
+    });
+  }
+
+  if (pageSelectorBtn && pageDropdownMenu) {
+    pageSelectorBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = pageDropdownMenu.classList.contains('hidden');
+      if (isHidden) {
+        dismissAllPopovers();
+        updatePageNavUI();
+        pageDropdownMenu.classList.remove('hidden');
+      } else {
+        pageDropdownMenu.classList.add('hidden');
+      }
+      sound.playClick();
+    });
+  }
+
+  if (btnNewPage) {
+    btnNewPage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      createPage();
+    });
+  }
+
+  if (btnFitPage) {
+    btnFitPage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fitPageToScreen();
+      sound.playClick();
+      showToast('⛶ Page centered & fitted');
+    });
+  }
+
+  if (btnDeletePage) {
+    btnDeletePage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deletePage();
+    });
+  }
+
+  // Dismiss page dropdown menu on outside click
+  window.addEventListener('click', (e) => {
+    if (pageDropdownMenu && !pageDropdownMenu.classList.contains('hidden') && !e.target.closest('#pageSelectorWrapper')) {
+      pageDropdownMenu.classList.add('hidden');
+    }
+  });
+
   clearBoardBtn.addEventListener('click', () => {
     if (!canCurrentUserDraw()) {
       showToast('🎓 Presentation Mode: Only the Host can clear the canvas.', 'warning');
       return;
     }
-    if (confirm('Clear the entire collaborative whiteboard?')) {
-      state.elements = [];
-      domLayer.innerHTML = '';
-      state.domElementsMap.clear();
-      clearSelection();
-      state.undoStack = [];
-      state.redoStack = [];
-      redrawBoard();
-      socket.emit('elements:clear');
-      sound.playPop();
-      showToast('Board cleared');
+    const isFixed = state.canvasMode === 'fixed_page';
+    const activePage = (state.pages && state.pages.find(p => p.id === state.activePageId)) || { number: 1, name: 'Page 1' };
+    const promptMsg = isFixed
+      ? `Clear all drawings on ${activePage.name || ('Page ' + activePage.number)}?`
+      : 'Clear the entire collaborative whiteboard?';
+
+    if (confirm(promptMsg)) {
+      if (isFixed) {
+        const activePageId = state.activePageId || 'page_1';
+        state.elements = state.elements.filter((el) => el.pageId && el.pageId !== activePageId);
+        for (const [elId, domNode] of state.domElementsMap.entries()) {
+          const el = state.elements.find((item) => item.id === elId);
+          if (!el || el.pageId === activePageId) {
+            domNode.remove();
+            state.domElementsMap.delete(elId);
+          }
+        }
+        clearSelection();
+        state.undoStack = [];
+        state.redoStack = [];
+        redrawBoard();
+        socket.emit('elements:clear', { pageId: activePageId });
+        sound.playPop();
+        showToast('Page cleared');
+      } else {
+        state.elements = [];
+        domLayer.innerHTML = '';
+        state.domElementsMap.clear();
+        clearSelection();
+        state.undoStack = [];
+        state.redoStack = [];
+        redrawBoard();
+        socket.emit('elements:clear', {});
+        sound.playPop();
+        showToast('Board cleared');
+      }
     }
   });
 
@@ -6365,6 +6813,11 @@
     state.hostSessionId = data.hostSessionId || state.user.sessionId;
     state.coHostSessionIds = new Set(data.coHostSessionIds || []);
     state.roomMode = data.roomMode || 'friendly';
+    state.canvasMode = data.canvasMode || 'fixed_page';
+    state.pageWidth = data.pageWidth || 1600;
+    state.pageHeight = data.pageHeight || 1000;
+    state.pages = Array.isArray(data.pages) && data.pages.length > 0 ? data.pages : [{ id: 'page_1', number: 1, name: 'Page 1', elements: [] }];
+    state.activePageId = data.activePageId || (state.pages[0] ? state.pages[0].id : 'page_1');
 
     state.elements = [];
     domLayer.innerHTML = '';
@@ -6400,8 +6853,109 @@
 
     updateCollaboratorsUI();
     updateRoomModeUI();
+    updateCanvasModeUI();
+    updatePageNavUI();
     renderManageHostsModal();
+    renderGrid();
     redrawBoard();
+    syncAllDomElementPositions();
+
+    if (state.canvasMode === 'fixed_page') {
+      setTimeout(() => fitPageToScreen(), 60);
+    }
+  });
+
+  socket.on('canvas:mode_changed', ({ canvasMode, byHost, hostName }) => {
+    // Only force-sync canvas mode when broadcasted by the Host during Host Mode presentation
+    if (byHost) {
+      state.canvasMode = canvasMode || 'fixed_page';
+      updateCanvasModeUI();
+      updatePageNavUI();
+      renderGrid();
+      redrawBoard();
+      syncAllDomElementPositions();
+      sound.playPop();
+      if (state.canvasMode === 'fixed_page') {
+        fitPageToScreen();
+        showToast(`🎓 <strong>Presentation:</strong> ${escapeHtml(hostName || 'Host')} switched layout to <strong>Fixed Multi-Page Mode</strong>`, 'host');
+      } else {
+        showToast(`🎓 <strong>Presentation:</strong> ${escapeHtml(hostName || 'Host')} switched layout to <strong>Infinite Playground Mode</strong>`, 'host');
+      }
+    }
+  });
+
+  socket.on('page:created', ({ page, activePageId, pages, creatorSocketId, byHost }) => {
+    if (pages) state.pages = pages;
+    else if (page) state.pages.push(page);
+
+    const isSelfCreator = (creatorSocketId && creatorSocketId === state.user.id) || (socket && creatorSocketId === socket.id);
+    const shouldSwitch = isSelfCreator || byHost;
+
+    if (shouldSwitch && activePageId) {
+      state.activePageId = activePageId;
+      clearSelection();
+      if (state.canvasMode === 'fixed_page') fitPageToScreen();
+    }
+
+    updatePageNavUI();
+    renderGrid();
+    redrawBoard();
+    syncAllDomElementPositions();
+    sound.playPop();
+
+    if (isSelfCreator) {
+      showToast(`📄 Created new ${escapeHtml(page ? page.name : 'Page')}`, 'success');
+    } else if (byHost) {
+      showToast(`🎓 Host created & switched to ${escapeHtml(page ? page.name : 'Page')}`, 'host');
+    } else {
+      showToast(`📄 New page created: <strong>${escapeHtml(page ? page.name : 'Page')}</strong> (Available in selector)`, 'info');
+    }
+  });
+
+  socket.on('page:switched', ({ activePageId, byHost, hostName }) => {
+    if (!activePageId) return;
+    state.activePageId = activePageId;
+    clearSelection();
+    updatePageNavUI();
+    renderGrid();
+    redrawBoard();
+    syncAllDomElementPositions();
+    if (state.canvasMode === 'fixed_page') fitPageToScreen();
+
+    if (byHost) {
+      sound.playPop();
+      const pageObj = state.pages && state.pages.find((p) => p.id === activePageId);
+      const pageTitle = pageObj ? (pageObj.name || ('Page ' + pageObj.number)) : 'Page';
+      showToast(`🎓 <strong>Presentation:</strong> ${escapeHtml(hostName || 'Host')} moved view to <strong>${escapeHtml(pageTitle)}</strong>`, 'host');
+    }
+  });
+
+  socket.on('page:deleted', ({ deletedPageId, activePageId, pages }) => {
+    if (pages) state.pages = pages;
+
+    // If current page was deleted, switch to fallback active page
+    if (state.activePageId === deletedPageId) {
+      state.activePageId = activePageId || (state.pages[0] ? state.pages[0].id : 'page_1');
+      clearSelection();
+      if (state.canvasMode === 'fixed_page') fitPageToScreen();
+    }
+
+    // Remove deleted page elements locally
+    state.elements = state.elements.filter((el) => el.pageId !== deletedPageId);
+    for (const [elId, domNode] of state.domElementsMap.entries()) {
+      const el = state.elements.find((item) => item.id === elId);
+      if (!el || el.pageId === deletedPageId) {
+        domNode.remove();
+        state.domElementsMap.delete(elId);
+      }
+    }
+
+    updatePageNavUI();
+    renderGrid();
+    redrawBoard();
+    syncAllDomElementPositions();
+    sound.playPop();
+    showToast('🗑️ Page was deleted', 'info');
   });
 
   socket.on('room:hosts_updated', ({ hostSessionId, coHostSessionIds, action, previousHostSessionId, newHostSessionId, fromName, toName, targetSessionId, isCoHost, targetName }) => {
@@ -6557,10 +7111,22 @@
       state.collaborators.set(data.socketId, peer);
     }
     peer.cursor = { x: data.x, y: data.y };
+    if (data.pageId) peer.activePageId = data.pageId;
     if (data.chatText !== undefined) peer.chatText = data.chatText;
   });
 
+  socket.on('user:page_changed', ({ socketId, activePageId }) => {
+    const peer = state.collaborators.get(socketId);
+    if (peer) {
+      peer.activePageId = activePageId;
+      redrawDraftLayer();
+    }
+  });
+
   socket.on('laser:trailed', (data) => {
+    if (state.canvasMode === 'fixed_page' && data.pageId && data.pageId !== (state.activePageId || 'page_1')) {
+      return;
+    }
     const screenPos = worldToScreen(data.x, data.y);
     addLaserPoint(screenPos.x, screenPos.y, data.color);
   });
@@ -6700,24 +7266,46 @@
     redrawBoard();
   });
 
-  socket.on('elements:cleared', () => {
-    state.elements = [];
-    domLayer.innerHTML = '';
-    state.domElementsMap.clear();
-    clearSelection();
-    state.undoStack = [];
-    state.redoStack = [];
-    redrawBoard();
-    showToast('Board was cleared by a collaborator');
+  socket.on('elements:cleared', (data = {}) => {
+    if (data && data.pageId) {
+      state.elements = state.elements.filter((el) => el.pageId && el.pageId !== data.pageId);
+      for (const [elId, domNode] of state.domElementsMap.entries()) {
+        const el = state.elements.find((item) => item.id === elId);
+        if (!el || el.pageId === data.pageId) {
+          domNode.remove();
+          state.domElementsMap.delete(elId);
+        }
+      }
+      clearSelection();
+      state.undoStack = [];
+      state.redoStack = [];
+      redrawBoard();
+      showToast('Page was cleared by a collaborator');
+    } else {
+      state.elements = [];
+      domLayer.innerHTML = '';
+      state.domElementsMap.clear();
+      clearSelection();
+      state.undoStack = [];
+      state.redoStack = [];
+      redrawBoard();
+      showToast('Board was cleared by a collaborator');
+    }
   });
 
   socket.on('reaction:emitted', (data) => {
+    if (state.canvasMode === 'fixed_page' && data.pageId && data.pageId !== (state.activePageId || 'page_1')) {
+      return;
+    }
     const screenPos = worldToScreen(data.x, data.y);
     addEmojiBurst(data.emoji, screenPos.x, screenPos.y);
     sound.playReactionChime();
   });
 
   socket.on('radar:pinged', (data) => {
+    if (state.canvasMode === 'fixed_page' && data.pageId && data.pageId !== (state.activePageId || 'page_1')) {
+      return;
+    }
     const screenPos = worldToScreen(data.x, data.y);
     addRadarPing(screenPos.x, screenPos.y, data.color, data.userName);
     sound.playRadarPing();
