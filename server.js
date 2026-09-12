@@ -27,10 +27,18 @@ function getOrCreateRoom(roomId) {
       users: new Map(),
       messages: [],
       hostSessionId: null,
-      hostDisconnectTimeout: null
+      hostDisconnectTimeout: null,
+      mode: 'friendly' // 'friendly' (all can draw) | 'host' (presentation mode, only host can draw)
     });
   }
   return rooms.get(roomId);
+}
+
+function canUserModifyCanvas(room, userSessionId) {
+  if (!room) return false;
+  if (!room.mode || room.mode === 'friendly') return true;
+  // In host mode, only host can draw
+  return room.hostSessionId && room.hostSessionId === userSessionId;
 }
 
 io.on('connection', (socket) => {
@@ -90,11 +98,30 @@ io.on('connection', (socket) => {
       messages: room.messages || [],
       selfId: socket.id,
       selfSessionId: userSessionId,
-      hostSessionId: room.hostSessionId
+      hostSessionId: room.hostSessionId,
+      roomMode: room.mode || 'friendly'
     });
 
     socket.to(roomId).emit('user:joined', currentUser);
     socket.to(roomId).emit('room:host_changed', { hostSessionId: room.hostSessionId });
+  });
+
+  // Host Mode Switcher (Friendly vs Host / Presentation Mode)
+  socket.on('room:set_mode', ({ mode }) => {
+    if (!currentRoomId) return;
+    const room = rooms.get(currentRoomId);
+    if (!room) return;
+    
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    // Only the host can toggle room mode
+    if (room.hostSessionId && room.hostSessionId !== userSessionId) {
+      return;
+    }
+
+    if (mode === 'friendly' || mode === 'host') {
+      room.mode = mode;
+      io.to(currentRoomId).emit('room:mode_changed', { mode: room.mode, hostSessionId: room.hostSessionId });
+    }
   });
 
   // 6. Real-Time Canvas Events
@@ -130,6 +157,9 @@ io.on('connection', (socket) => {
   socket.on('element:add', (element) => {
     if (!currentRoomId || !element || !element.id) return;
     const room = getOrCreateRoom(currentRoomId);
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    if (!canUserModifyCanvas(room, userSessionId)) return;
+
     room.elements.set(element.id, element);
     socket.to(currentRoomId).emit('element:added', element);
   });
@@ -137,6 +167,9 @@ io.on('connection', (socket) => {
   socket.on('element:update', (updatedElement) => {
     if (!currentRoomId || !updatedElement || !updatedElement.id) return;
     const room = getOrCreateRoom(currentRoomId);
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    if (!canUserModifyCanvas(room, userSessionId)) return;
+
     if (room.elements.has(updatedElement.id)) {
       const existing = room.elements.get(updatedElement.id);
       const merged = { ...existing, ...updatedElement };
@@ -151,6 +184,9 @@ io.on('connection', (socket) => {
   socket.on('elements:batch_update', (elements) => {
     if (!currentRoomId || !Array.isArray(elements)) return;
     const room = getOrCreateRoom(currentRoomId);
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    if (!canUserModifyCanvas(room, userSessionId)) return;
+
     elements.forEach((el) => {
       if (el && el.id) room.elements.set(el.id, el);
     });
@@ -160,6 +196,9 @@ io.on('connection', (socket) => {
   socket.on('element:delete', (elementId) => {
     if (!currentRoomId || !elementId) return;
     const room = getOrCreateRoom(currentRoomId);
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    if (!canUserModifyCanvas(room, userSessionId)) return;
+
     room.elements.delete(elementId);
     socket.to(currentRoomId).emit('element:deleted', elementId);
   });
@@ -167,6 +206,9 @@ io.on('connection', (socket) => {
   socket.on('elements:clear', () => {
     if (!currentRoomId) return;
     const room = getOrCreateRoom(currentRoomId);
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    if (!canUserModifyCanvas(room, userSessionId)) return;
+
     room.elements.clear();
     socket.to(currentRoomId).emit('elements:cleared');
   });
