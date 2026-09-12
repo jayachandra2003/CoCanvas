@@ -20,6 +20,7 @@
 ### 🖌️ Multi-Layer Whiteboard Engine
 * **Infinite Pan & Smooth Zoom**: Hardware-accelerated multi-canvas architecture (Grid, Board, Draft, DOM, and VFX layers) with smooth zoom interpolation (`10%` to `500%`).
 * **Drawing & Shape Tools**: Precision Pen, Highlighter, Eraser, Line, Arrow, Rectangle, Ellipse/Circle, and Rich Text boxes.
+* **Shape Color & Fill Styles**: Full support for transparent outlines (`🚫 None`), 25% soft translucent fills (`✨ Tint`), and 100% opaque fills (`⬛ Solid`), with customizable stroke and fill palettes (matching stroke color or independent pastel shades).
 * **Selection & Transform Box**: Select, drag, resize from 8-point handles, clone, and delete any whiteboard element.
 * **Built-in Templates**: One-click insertion for **Kanban Boards**, **Priority 2x2 Matrix**, and **Team Retrospective boards**.
 * **Export in Multiple Formats**: Export entire board or viewport to **PNG (High-Res)**, **PDF document**, **Word DOCX**, and structured **JSON** with full re-import capability.
@@ -31,6 +32,7 @@
 * **Room Roles & Host Management Modal**: Interactive dialog to view all room participants, their connection status, and manage administrative roles in real time.
 * **Smart Host Succession**: Automatic priority host handover upon disconnect, prioritizing online Co-Hosts before other participants.
 * **Live Multiplayer Presence**: Real-time cursor coordinates, user names, color rings, role badges (`👑` / `⭐`), and live status dots.
+* **Toggle Collaborators' Cursors Visibility**: 1-click toggle (`Alt + C`) to show or hide all remote peer cursors for a clean, distraction-free canvas or presentation recording.
 * **Laser Pointer & Radar Ping**: Draw disappearing glow laser trails (`K`) or ping points on the canvas (`P`) to focus team attention.
 * **Instant Cursor Chat**: Press `/` or click Cursor Chat to broadcast real-time floating thought bubbles attached directly to your cursor.
 * **Emoji Bursts**: Send floating celebration reaction particles anywhere on the canvas.
@@ -59,6 +61,7 @@
 | `P` | Pen / Freehand Draw |
 | `H` | Highlighter |
 | `E` | Eraser |
+| `B` / `F` | Paint Bucket / Fill with Color |
 | `R` | Rectangle Shape |
 | `O` | Circle / Ellipse Shape |
 | `L` | Line Tool |
@@ -67,6 +70,7 @@
 | `S` | Sticky Note |
 | `C` | Code Snippet Card |
 | `K` | Laser Pointer |
+| `Alt + C` | Toggle Collaborators' Cursors (Show/Hide) |
 | `/` | Instant Cursor Chat |
 | `Ctrl + Z` | Undo action |
 | `Ctrl + Y` / `Ctrl + Shift + Z` | Redo action |
