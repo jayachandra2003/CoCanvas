@@ -309,7 +309,8 @@
     localChatActive: false,
     cameraAnimation: null,
     isChatOpen: false,
-    unreadChatCount: 0
+    unreadChatCount: 0,
+    roomMode: 'friendly' // 'friendly' (all draw) | 'host' (presentation mode, only host draws)
   };
 
   // Sync avatar index
@@ -353,6 +354,14 @@
   const btnExitRoom = document.getElementById('btnExitRoom');
   const currentRoomCodeEl = document.getElementById('currentRoomCode');
   const roomPillBtn = document.getElementById('roomPillBtn');
+  const roomModeWrapper = document.getElementById('roomModeWrapper');
+  const roomModeBtn = document.getElementById('roomModeBtn');
+  const roomModeIcon = document.getElementById('roomModeIcon');
+  const roomModeLabel = document.getElementById('roomModeLabel');
+  const roomModeMenu = document.getElementById('roomModeMenu');
+  const btnModeFriendly = document.getElementById('btnModeFriendly');
+  const btnModeHost = document.getElementById('btnModeHost');
+  const presentationBanner = document.getElementById('presentationBanner');
   const collaboratorStack = document.getElementById('collaboratorStack');
   const shareRoomBtn = document.getElementById('shareRoomBtn');
   const topNavProfileBtn = document.getElementById('topNavProfileBtn');
@@ -388,6 +397,7 @@
   const chatMessagesContainer = document.getElementById('chatMessagesContainer');
   const chatInputForm = document.getElementById('chatInputForm');
   const chatMessageInput = document.getElementById('chatMessageInput');
+  const btnVoiceChat = document.getElementById('btnVoiceChat');
   const chatEmojiButtons = document.querySelectorAll('.chat-emoji-btn');
 
   // Canvases
@@ -1163,6 +1173,10 @@
       dot.title = `Theme: ${th}`;
       dot.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (!canCurrentUserDraw()) {
+          showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+          return;
+        }
         card.className = `sticky-note-card theme-${th}`;
         el.theme = th;
         sound.playClick();
@@ -1182,6 +1196,10 @@
 
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!canCurrentUserDraw()) {
+        showToast('🎓 Presentation Mode: Only the Host can edit canvas.', 'warning');
+        return;
+      }
       card.remove();
       state.domElementsMap.delete(el.id);
       state.elements = state.elements.filter((item) => item.id !== el.id);
@@ -1203,8 +1221,16 @@
       textarea.addEventListener(evtType, (e) => e.stopPropagation());
     });
 
+    textarea.addEventListener('focus', () => {
+      if (!canCurrentUserDraw()) {
+        textarea.blur();
+        showToast('🎓 Presentation Mode: Canvas is View-Only.', 'info');
+      }
+    });
+
     let typingTimeout = null;
     textarea.addEventListener('input', () => {
+      if (!canCurrentUserDraw()) return;
       el.text = textarea.value;
       clearTimeout(typingTimeout);
       typingTimeout = setTimeout(() => socket.emit('element:update', { id: el.id, text: el.text }), 150);
@@ -1219,6 +1245,7 @@
 
     header.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.sticky-actions') || e.target.closest('.sticky-btn-delete')) return;
+      if (!canCurrentUserDraw()) return;
       isDragging = true;
       dragStartPos = { x: e.clientX, y: e.clientY };
       initialWorldPos = { x: el.x, y: el.y };
@@ -1266,6 +1293,10 @@
 
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!canCurrentUserDraw()) {
+        showToast('🎓 Presentation Mode: Only Host can edit canvas.', 'warning');
+        return;
+      }
       box.remove();
       state.domElementsMap.delete(el.id);
       state.elements = state.elements.filter((item) => item.id !== el.id);
@@ -1294,13 +1325,21 @@
 
     let typingTimeout = null;
     textarea.addEventListener('input', () => {
+      if (!canCurrentUserDraw()) return;
       autoResize();
       el.text = textarea.value;
       clearTimeout(typingTimeout);
       typingTimeout = setTimeout(() => socket.emit('element:update', { id: el.id, text: el.text }), 150);
     });
 
-    textarea.addEventListener('focus', () => box.classList.add('active'));
+    textarea.addEventListener('focus', () => {
+      if (!canCurrentUserDraw()) {
+        textarea.blur();
+        showToast('🎓 Presentation Mode: Canvas is View-Only.', 'info');
+        return;
+      }
+      box.classList.add('active');
+    });
     textarea.addEventListener('blur', () => box.classList.remove('active'));
 
     box.appendChild(header);
@@ -1312,6 +1351,7 @@
 
     box.addEventListener('pointerdown', (e) => {
       if (e.target === textarea || e.target.closest('.board-text-btn-delete')) return;
+      if (!canCurrentUserDraw()) return;
       isDragging = true;
       dragStartPos = { x: e.clientX, y: e.clientY };
       initialWorldPos = { x: el.x, y: el.y };
@@ -1504,6 +1544,7 @@
 
     let codeTimeout = null;
     textarea.addEventListener('input', () => {
+      if (!canCurrentUserDraw()) return;
       updateLineNumbers();
       el.code = textarea.value;
       clearTimeout(codeTimeout);
@@ -1512,12 +1553,29 @@
       }, 150);
     });
 
+    textarea.addEventListener('focus', () => {
+      if (!canCurrentUserDraw()) {
+        textarea.blur();
+        showToast('🎓 Presentation Mode: Canvas is View-Only.', 'info');
+      }
+    });
+
     filenameInput.addEventListener('input', () => {
+      if (!canCurrentUserDraw()) return;
       el.filename = filenameInput.value;
       socket.emit('element:update', { id: el.id, filename: el.filename });
     });
 
+    filenameInput.addEventListener('focus', () => {
+      if (!canCurrentUserDraw()) filenameInput.blur();
+    });
+
     langSelect.addEventListener('change', () => {
+      if (!canCurrentUserDraw()) {
+        langSelect.value = el.language || 'javascript';
+        showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+        return;
+      }
       const selectedId = langSelect.value;
       const langObj = CODE_LANGUAGES.find(l => l.id === selectedId) || CODE_LANGUAGES[0];
       el.language = selectedId;
@@ -1543,6 +1601,11 @@
     });
 
     deleteBtn.addEventListener('click', () => {
+      e.stopPropagation();
+      if (!canCurrentUserDraw()) {
+        showToast('🎓 Presentation Mode: Only Host can edit canvas.', 'warning');
+        return;
+      }
       card.remove();
       state.domElementsMap.delete(el.id);
       state.elements = state.elements.filter((item) => item.id !== el.id);
@@ -1558,6 +1621,7 @@
 
     header.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.code-header-actions') || e.target === langSelect || e.target === filenameInput) return;
+      if (!canCurrentUserDraw()) return;
       isDragging = true;
       dragStartPos = { x: e.clientX, y: e.clientY };
       initialWorldPos = { x: el.x, y: el.y };
@@ -1659,6 +1723,10 @@
   selectionDeleteBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!state.selectedElementId) return;
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Only Host can edit canvas.', 'warning');
+      return;
+    }
     const id = state.selectedElementId;
     state.elements = state.elements.filter((item) => item.id !== id);
     clearSelection();
@@ -1672,6 +1740,7 @@
   selectionBox.addEventListener('pointerdown', (e) => {
     // If clicking a resize handle or delete button, let their specific listeners handle it
     if (e.target.closest('.selection-handle') || e.target.closest('.selection-delete-btn')) return;
+    if (!canCurrentUserDraw()) return;
     e.stopPropagation();
 
     const el = state.elements.find((item) => item.id === state.selectedElementId);
@@ -1719,6 +1788,7 @@
   selectionBox.querySelectorAll('.selection-handle').forEach((handle) => {
     handle.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
+      if (!canCurrentUserDraw()) return;
       const el = state.elements.find((item) => item.id === state.selectedElementId);
       if (!el) return;
 
@@ -2004,6 +2074,67 @@
     }
   }
 
+  // --- Room Mode & Permissions Helpers ---
+  function isCurrentUserHost() {
+    return !state.hostSessionId || state.hostSessionId === state.user.sessionId;
+  }
+
+  function canCurrentUserDraw() {
+    if (!state.roomMode || state.roomMode === 'friendly') return true;
+    return isCurrentUserHost();
+  }
+
+  function updateRoomModeUI() {
+    const isHost = isCurrentUserHost();
+    const isFriendly = !state.roomMode || state.roomMode === 'friendly';
+
+    if (btnModeFriendly) btnModeFriendly.classList.toggle('active', isFriendly);
+    if (btnModeHost) btnModeHost.classList.toggle('active', !isFriendly);
+
+    if (roomModeBtn) {
+      if (isFriendly) {
+        roomModeBtn.classList.remove('is-host-mode');
+        if (roomModeIcon) roomModeIcon.textContent = '🤝';
+        if (roomModeLabel) roomModeLabel.textContent = isHost ? 'Friendly Mode' : 'Friendly (All Draw)';
+      } else {
+        roomModeBtn.classList.add('is-host-mode');
+        if (roomModeIcon) roomModeIcon.textContent = '🎓';
+        if (roomModeLabel) roomModeLabel.textContent = isHost ? 'Host Mode' : 'View Only (Host Mode)';
+      }
+
+      if (isHost) {
+        roomModeBtn.classList.remove('read-only-badge');
+        roomModeBtn.title = 'Switch Canvas Access Mode (Friendly vs Host Presentation)';
+      } else {
+        roomModeBtn.classList.add('read-only-badge');
+        roomModeBtn.title = isFriendly ? 'Friendly Mode: Everyone can draw' : 'Presentation Mode: Controlled by Host';
+      }
+    }
+
+    if (presentationBanner) {
+      if (!isFriendly && !isHost) {
+        presentationBanner.classList.remove('hidden');
+      } else {
+        presentationBanner.classList.add('hidden');
+      }
+    }
+
+    const isDrawForbidden = !isFriendly && !isHost;
+    if (dockButtons) {
+      dockButtons.forEach((btn) => {
+        const tool = btn.getAttribute('data-tool');
+        if (tool && tool !== 'select' && tool !== 'laser') {
+          btn.classList.toggle('mode-disabled', isDrawForbidden);
+        }
+      });
+    }
+
+    if (isDrawForbidden && state.activeTool !== 'select' && state.activeTool !== 'laser') {
+      state.activeTool = 'select';
+      updateActiveToolUI();
+    }
+  }
+
   function setupCanvasEvents() {
     boardCanvas.addEventListener('pointerdown', (e) => {
       dismissAllPopovers();
@@ -2020,13 +2151,18 @@
       if (e.button !== 0) return;
       const worldPos = screenToWorld(e.clientX, e.clientY);
 
+      if (!canCurrentUserDraw() && state.activeTool !== 'select' && state.activeTool !== 'laser') {
+        showToast('🎓 Presentation Mode: Canvas is View-Only for participants.', 'warning');
+        return;
+      }
+
       if (state.activeTool === 'select') {
         const hitId = hitTestAnyElement(worldPos);
         if (hitId) {
           selectElement(hitId);
           sound.playClick();
           const el = state.elements.find((item) => item.id === hitId);
-          if (el) {
+          if (el && canCurrentUserDraw()) {
             state.isDraggingElement = true;
             state.dragElementStart = {
               clientX: e.clientX,
@@ -2444,6 +2580,10 @@
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', (e) => {
     e.preventDefault();
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Only the Host can upload images.', 'warning');
+      return;
+    }
     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
       if (file.type.startsWith('image/')) {
@@ -2457,8 +2597,19 @@
     }
   });
 
-  toolImageBtn.addEventListener('click', () => imageUploadInput.click());
+  toolImageBtn.addEventListener('click', () => {
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Only the Host can upload images.', 'warning');
+      return;
+    }
+    imageUploadInput.click();
+  });
+
   imageUploadInput.addEventListener('change', (e) => {
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Only the Host can upload images.', 'warning');
+      return;
+    }
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -2471,6 +2622,7 @@
 
   // Templates
   function insertKanbanTemplate() {
+    if (!canCurrentUserDraw()) return;
     const cx = screenToWorld(viewWidth / 2, viewHeight / 2).x - 360;
     const cy = screenToWorld(viewWidth / 2, viewHeight / 2).y - 200;
     const columns = [
@@ -2498,6 +2650,7 @@
   }
 
   function insertMatrixTemplate() {
+    if (!canCurrentUserDraw()) return;
     const center = screenToWorld(viewWidth / 2, viewHeight / 2);
     const size = 300;
     const batch = [
@@ -2519,6 +2672,7 @@
   }
 
   function insertRetroTemplate() {
+    if (!canCurrentUserDraw()) return;
     const cx = screenToWorld(viewWidth / 2, viewHeight / 2).x - 360;
     const cy = screenToWorld(viewWidth / 2, viewHeight / 2).y - 200;
     const columns = [
@@ -2548,6 +2702,10 @@
   if (templatesBtn && templatesMenu) {
     templatesBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!canCurrentUserDraw()) {
+        showToast('🎓 Presentation Mode: Only the Host can insert templates.', 'warning');
+        return;
+      }
       templatesMenu.parentElement.classList.toggle('active');
     });
     if (tmplKanbanBtn) tmplKanbanBtn.addEventListener('click', () => { dismissAllPopovers(); insertKanbanTemplate(); });
@@ -2602,8 +2760,50 @@
   }
 
   function setupPopovers() {
+    if (roomModeBtn) {
+      roomModeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!isCurrentUserHost()) {
+          showToast(state.roomMode === 'host' ? '🎓 Room is in Presentation Mode (Controlled by Host)' : '🤝 Friendly Mode: Everyone can draw', 'info');
+          return;
+        }
+        const isOpen = roomModeWrapper && roomModeWrapper.classList.contains('active');
+        dismissAllPopovers();
+        if (!isOpen && roomModeWrapper) roomModeWrapper.classList.add('active');
+        sound.playClick();
+      });
+    }
+
+    if (btnModeFriendly) {
+      btnModeFriendly.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!isCurrentUserHost()) return;
+        dismissAllPopovers();
+        if (state.roomMode !== 'friendly') {
+          socket.emit('room:set_mode', { mode: 'friendly' });
+          sound.playClick();
+        }
+      });
+    }
+
+    if (btnModeHost) {
+      btnModeHost.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!isCurrentUserHost()) return;
+        dismissAllPopovers();
+        if (state.roomMode !== 'host') {
+          socket.emit('room:set_mode', { mode: 'host' });
+          sound.playClick();
+        }
+      });
+    }
+
     shapePopoverBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!canCurrentUserDraw()) {
+        showToast('🎓 Presentation Mode: Only Host can draw shapes.', 'warning');
+        return;
+      }
       const parent = shapePopoverBtn.parentElement;
       const isOpen = parent.classList.contains('open');
       dismissAllPopovers();
@@ -2614,6 +2814,10 @@
     shapesPopover.querySelectorAll('.popover-item').forEach((item) => {
       item.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (!canCurrentUserDraw()) {
+          showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+          return;
+        }
         const tool = item.dataset.tool;
         state.activeTool = tool;
         shapesPopover.querySelectorAll('.popover-item').forEach((i) => i.classList.remove('active'));
@@ -2706,7 +2910,12 @@
   dockButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.id === 'shapePopoverBtn') return;
-      state.activeTool = btn.dataset.tool;
+      const tool = btn.dataset.tool;
+      if (tool && tool !== 'select' && tool !== 'laser' && !canCurrentUserDraw()) {
+        showToast('🎓 Presentation Mode: Only Host can draw on the canvas.', 'warning');
+        return;
+      }
+      state.activeTool = tool;
       updateActiveToolUI();
       sound.playClick();
     });
@@ -2747,6 +2956,10 @@
 
   // Undo / Redo
   function performUndo() {
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Canvas is View-Only for participants.', 'warning');
+      return;
+    }
     if (state.undoStack.length === 0) return;
     const action = state.undoStack.pop();
     state.redoStack.push(action);
@@ -2772,6 +2985,10 @@
   }
 
   function performRedo() {
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Canvas is View-Only for participants.', 'warning');
+      return;
+    }
     if (state.redoStack.length === 0) return;
     const action = state.redoStack.pop();
     state.undoStack.push(action);
@@ -3028,6 +3245,10 @@
   });
 
   importJsonInput.addEventListener('change', (e) => {
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Only the Host can import data.', 'warning');
+      return;
+    }
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -3056,6 +3277,10 @@
   });
 
   clearBoardBtn.addEventListener('click', () => {
+    if (!canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Only the Host can clear the canvas.', 'warning');
+      return;
+    }
     if (confirm('Clear the entire collaborative whiteboard?')) {
       state.elements = [];
       domLayer.innerHTML = '';
@@ -3210,6 +3435,12 @@
     }
 
     const key = e.key.toLowerCase();
+    const drawingKeys = ['p', 'h', 'e', 'r', 'o', 'a', 'l', 's', 't', 'c', 'i'];
+    if (drawingKeys.includes(key) && !canCurrentUserDraw()) {
+      showToast('🎓 Presentation Mode: Only the Host can draw.', 'warning');
+      return;
+    }
+
     if (key === 'v') { state.activeTool = 'select'; updateActiveToolUI(); sound.playClick(); }
     else if (key === 'k') { state.activeTool = 'laser'; updateActiveToolUI(); sound.playClick(); }
     else if (key === 'p') { state.activeTool = 'pen'; updateActiveToolUI(); sound.playClick(); }
@@ -3339,6 +3570,7 @@
     state.roomId = data.roomId;
     state.user.id = data.selfId;
     state.hostSessionId = data.hostSessionId || state.user.sessionId;
+    state.roomMode = data.roomMode || 'friendly';
 
     state.elements = [];
     domLayer.innerHTML = '';
@@ -3373,14 +3605,35 @@
     }
 
     updateCollaboratorsUI();
+    updateRoomModeUI();
     redrawBoard();
   });
 
   socket.on('room:host_changed', ({ hostSessionId }) => {
     state.hostSessionId = hostSessionId;
     updateCollaboratorsUI();
+    updateRoomModeUI();
     if (state.hostSessionId === state.user.sessionId) {
       showToast('👑 <strong>You are the room host!</strong>', 'host');
+    }
+  });
+
+  socket.on('room:mode_changed', ({ mode, hostSessionId }) => {
+    state.roomMode = mode;
+    if (hostSessionId) state.hostSessionId = hostSessionId;
+    updateRoomModeUI();
+    updateCollaboratorsUI();
+
+    if (mode === 'host') {
+      sound.playPop();
+      if (isCurrentUserHost()) {
+        showToast('🎓 <strong>Host Mode active</strong>: You are presenting. Viewers are in View-Only mode.', 'host');
+      } else {
+        showToast('🎓 <strong>Presentation Mode</strong>: Host is presenting. Canvas is now View-Only.', 'info');
+      }
+    } else {
+      sound.playPop();
+      showToast('🤝 <strong>Friendly Mode active</strong>: Everyone can draw and collaborate!', 'success');
     }
   });
 
@@ -3530,7 +3783,10 @@
   function openChatSpace() {
     state.isChatOpen = true;
     if (chatSpacePanel) chatSpacePanel.classList.remove('collapsed');
-    if (chatFloatingTab) chatFloatingTab.classList.add('hidden');
+    if (chatFloatingTab) {
+      chatFloatingTab.classList.add('hidden');
+      chatFloatingTab.classList.remove('has-unread', 'tab-anim-pop');
+    }
     state.unreadChatCount = 0;
     if (chatUnreadBadge) {
       chatUnreadBadge.textContent = '0';
@@ -3550,6 +3806,7 @@
 
   function closeChatSpace() {
     state.isChatOpen = false;
+    stopVoiceRecognition();
     if (chatSpacePanel) chatSpacePanel.classList.add('collapsed');
     if (chatFloatingTab) chatFloatingTab.classList.remove('hidden');
   }
@@ -3646,6 +3903,107 @@
     });
   }
 
+  // --- Voice Input (Speech-to-Text) ---
+  let speechRecognizer = null;
+  let isListeningVoice = false;
+
+  function initSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return null;
+
+    const recognizer = new SpeechRecognition();
+    recognizer.continuous = false;
+    recognizer.interimResults = true;
+    recognizer.lang = navigator.language || 'en-US';
+
+    let originalTextBeforeVoice = '';
+
+    recognizer.onstart = () => {
+      isListeningVoice = true;
+      if (btnVoiceChat) {
+        btnVoiceChat.classList.add('recording');
+        btnVoiceChat.title = 'Listening... Click to stop';
+      }
+      originalTextBeforeVoice = chatMessageInput ? chatMessageInput.value : '';
+      if (chatMessageInput) {
+        chatMessageInput.placeholder = '🎙️ Listening... speak now';
+      }
+      sound.playPop();
+    };
+
+    recognizer.onresult = (event) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        transcript += event.results[i][0].transcript;
+      }
+      if (chatMessageInput && transcript) {
+        const prefix = originalTextBeforeVoice ? originalTextBeforeVoice.trim() + ' ' : '';
+        chatMessageInput.value = prefix + transcript;
+      }
+    };
+
+    recognizer.onerror = (event) => {
+      console.warn('Speech recognition error:', event.error);
+      stopVoiceRecognition();
+      if (event.error === 'not-allowed') {
+        showToast('Microphone access denied. Please allow microphone in browser settings.', 'warning');
+      } else if (event.error !== 'no-speech') {
+        showToast(`Voice error: ${event.error}`, 'warning');
+      }
+    };
+
+    recognizer.onend = () => {
+      stopVoiceRecognition();
+      if (chatMessageInput) {
+        chatMessageInput.placeholder = 'Type a message or use voice...';
+        chatMessageInput.focus();
+      }
+    };
+
+    return recognizer;
+  }
+
+  function startVoiceRecognition() {
+    if (!speechRecognizer) {
+      speechRecognizer = initSpeechRecognition();
+    }
+    if (!speechRecognizer) {
+      showToast('Voice input is not supported in this browser. Try Google Chrome or Edge.', 'warning');
+      return;
+    }
+
+    try {
+      speechRecognizer.start();
+    } catch (err) {
+      console.warn('Speech start error:', err);
+    }
+  }
+
+  function stopVoiceRecognition() {
+    isListeningVoice = false;
+    if (btnVoiceChat) {
+      btnVoiceChat.classList.remove('recording');
+      btnVoiceChat.title = 'Voice Input (Speech to Text)';
+    }
+    if (speechRecognizer) {
+      try {
+        speechRecognizer.stop();
+      } catch (err) {}
+    }
+  }
+
+  if (btnVoiceChat) {
+    btnVoiceChat.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (isListeningVoice) {
+        stopVoiceRecognition();
+        sound.playClick();
+      } else {
+        startVoiceRecognition();
+      }
+    });
+  }
+
   // Form Submission
   if (chatInputForm) {
     chatInputForm.addEventListener('submit', (e) => {
@@ -3657,6 +4015,10 @@
       if (!state.roomId) {
         showToast('Please join a room to send messages', 'warning');
         return;
+      }
+
+      if (isListeningVoice) {
+        stopVoiceRecognition();
       }
 
       socket.emit('chat:send', { text });
@@ -3673,10 +4035,16 @@
     if (!isSelf) {
       sound.playPop();
       if (!state.isChatOpen) {
-        state.unreadChatCount++;
+        state.unreadChatCount = (state.unreadChatCount || 0) + 1;
         if (chatUnreadBadge) {
-          chatUnreadBadge.textContent = state.unreadChatCount > 99 ? '99+' : state.unreadChatCount;
+          chatUnreadBadge.textContent = state.unreadChatCount > 99 ? '99+' : String(state.unreadChatCount);
           chatUnreadBadge.classList.remove('hidden');
+        }
+        if (chatFloatingTab) {
+          chatFloatingTab.classList.add('has-unread');
+          chatFloatingTab.classList.remove('tab-anim-pop');
+          void chatFloatingTab.offsetWidth; // Force DOM reflow to re-trigger pop animation
+          chatFloatingTab.classList.add('tab-anim-pop');
         }
         let snippet = msg.text || 'Message';
         if (snippet.length > 35) snippet = snippet.slice(0, 35) + '...';
