@@ -182,7 +182,7 @@
               </div>
               <ul class="news-updates-list">
                 <li><span class="news-item-icon">💻</span><span><strong>Smart Code Editor</strong>: Auto-closing pairs & auto-indent</span></li>
-                <li><span class="news-item-icon">🎓</span><span><strong>Host Presentation</strong>: Teacher lock & Friendly modes</span></li>
+                <li><span class="news-item-icon">👑</span><span><strong>Host & Co-Host Roles</strong>: Transfer host & share presentation access</span></li>
                 <li><span class="news-item-icon">🎙️</span><span><strong>Voice-to-Text Chat</strong>: Hands-free voice speech input</span></li>
                 <li><span class="news-item-icon">🔔</span><span><strong>Unread Badges</strong>: Real-time counter on minimized chat</span></li>
                 <li><span class="news-item-icon">🧹</span><span><strong>Refined Tool Dock</strong>: Clear icons for Eraser, Notes & Code</span></li>
@@ -284,9 +284,17 @@
                 <span class="mode-item-icon">🎓</span>
                 <div class="mode-item-info">
                   <strong class="mode-item-title">Host Mode (Presenting)</strong>
-                  <span class="mode-item-desc">Only Host can draw · Viewers watch</span>
+                  <span class="mode-item-desc">Only Hosts can draw · Viewers watch</span>
                 </div>
                 <span class="mode-check-indicator">✓</span>
+              </button>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item" id="btnOpenManageHosts">
+                <span class="mode-item-icon">👑</span>
+                <div class="mode-item-info">
+                  <strong class="mode-item-title">Manage Hosts & Roles</strong>
+                  <span class="mode-item-desc">Transfer host & share Co-Host access</span>
+                </div>
               </button>
             </div>
           </div>
@@ -730,6 +738,40 @@
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
             <span>Upload Photo from Computer</span>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 5: Room Roles & Host Management -->
+    <div class="modal-backdrop" id="manageHostsModal">
+      <div class="modal-card manage-hosts-card glass-panel animate-pop">
+        <div class="modal-header">
+          <div class="modal-brand">
+            <span class="manage-hosts-header-icon">👑</span>
+            <div class="manage-hosts-header-title">
+              <h3>Room Roles & Permissions</h3>
+              <p class="modal-sub">Transfer host ownership or share Co-Host access</p>
+            </div>
+          </div>
+          <button class="close-modal-btn" id="closeManageHostsBtn">&times;</button>
+        </div>
+
+        <div class="manage-hosts-body">
+          <div class="hosts-section-header">
+            <span class="hosts-section-label">PARTICIPANTS (<span id="hostsParticipantCount">0</span>)</span>
+            <span class="hosts-current-role-badge" id="myRoleIndicator">Your Role: 👑 Primary Host</span>
+          </div>
+
+          <div class="hosts-participants-list" id="hostsParticipantsList">
+            <!-- Dynamically populated with participant cards -->
+          </div>
+        </div>
+
+        <div class="manage-hosts-footer">
+          <div class="hosts-footer-note">
+            <span class="footer-note-icon">💡</span>
+            <p><strong>Primary Host</strong> can transfer full ownership or assign multiple <strong>Co-Hosts</strong> (⭐) to present simultaneously in Host Mode.</p>
+          </div>
         </div>
       </div>
     </div>

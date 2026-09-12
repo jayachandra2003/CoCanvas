@@ -26,8 +26,11 @@
 
 ### 👥 Real-Time Multiplayer & Presentation Modes
 * **Host Presentation Mode vs. Friendly Mode**: Host can switch rooms between *Presentation Mode* (locks participant drawing tools into view-only presentation, ideal for classrooms & webinars) and *Friendly Mode* (full collaborative drawing for all participants).
-* **Live Multiplayer Presence**: Real-time cursor coordinates, user names, color rings, and live status dots.
-* **Host Control & Seamless Reconnect**: Crown badge identification (`👑`) for room hosts with automatic host handover upon disconnect.
+* **Transfer Host Ownership**: Primary Host can pass full room ownership (`👑`) to any participant with 1 click.
+* **Share Host (Multiple Co-Hosts)**: Primary Host can grant or revoke Co-Host privileges (`⭐`) to multiple teammates, allowing them to present and draw concurrently in Host Presentation Mode.
+* **Room Roles & Host Management Modal**: Interactive dialog to view all room participants, their connection status, and manage administrative roles in real time.
+* **Smart Host Succession**: Automatic priority host handover upon disconnect, prioritizing online Co-Hosts before other participants.
+* **Live Multiplayer Presence**: Real-time cursor coordinates, user names, color rings, role badges (`👑` / `⭐`), and live status dots.
 * **Laser Pointer & Radar Ping**: Draw disappearing glow laser trails (`K`) or ping points on the canvas (`P`) to focus team attention.
 * **Instant Cursor Chat**: Press `/` or click Cursor Chat to broadcast real-time floating thought bubbles attached directly to your cursor.
 * **Emoji Bursts**: Send floating celebration reaction particles anywhere on the canvas.
