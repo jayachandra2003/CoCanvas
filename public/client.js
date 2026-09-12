@@ -278,6 +278,8 @@
   const state = {
     roomId: null,
     hostId: null,
+    hostSessionId: null,
+    coHostSessionIds: new Set(),
     user: loadStoredUser(),
     avatarIndex: 0,
     currentScreen: 'landing', // 'landing' or 'whiteboard'
@@ -310,7 +312,7 @@
     cameraAnimation: null,
     isChatOpen: false,
     unreadChatCount: 0,
-    roomMode: 'friendly' // 'friendly' (all draw) | 'host' (presentation mode, only host draws)
+    roomMode: 'friendly' // 'friendly' (all draw) | 'host' (presentation mode, only hosts draw)
   };
 
   // Sync avatar index
@@ -452,6 +454,13 @@
 
   const shortcutsModal = document.getElementById('shortcutsModal');
   const closeShortcutsBtn = document.getElementById('closeShortcutsBtn');
+
+  const manageHostsModal = document.getElementById('manageHostsModal');
+  const closeManageHostsBtn = document.getElementById('closeManageHostsBtn');
+  const btnOpenManageHosts = document.getElementById('btnOpenManageHosts');
+  const hostsParticipantsList = document.getElementById('hostsParticipantsList');
+  const hostsParticipantCount = document.getElementById('hostsParticipantCount');
+  const myRoleIndicator = document.getElementById('myRoleIndicator');
 
   // --- 5. Coordinate Transforms ---
   function screenToWorld(clientX, clientY) {
@@ -2174,12 +2183,20 @@
         cursorCtx.fillText(peer.avatar || '👤', circleCenterX, circleCenterY + 1);
       }
 
-      // Host crown indicator
-      if (isPeerHost) {
+      const isPeerPrimaryHost = state.hostSessionId && peer.sessionId === state.hostSessionId;
+      const isPeerCoHost = !!(state.coHostSessionIds && state.coHostSessionIds.has(peer.sessionId));
+
+      // Host / Co-Host indicator on cursor
+      if (isPeerPrimaryHost) {
         cursorCtx.font = '10px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
         cursorCtx.textAlign = 'center';
         cursorCtx.textBaseline = 'middle';
         cursorCtx.fillText('👑', circleCenterX + 10, circleCenterY - 9);
+      } else if (isPeerCoHost) {
+        cursorCtx.font = '10px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+        cursorCtx.textAlign = 'center';
+        cursorCtx.textBaseline = 'middle';
+        cursorCtx.fillText('⭐', circleCenterX + 10, circleCenterY - 9);
       }
 
       // 3. Name Label (Centered directly UNDER the Avatar Circle)
@@ -2290,8 +2307,16 @@
   }
 
   // --- Room Mode & Permissions Helpers ---
-  function isCurrentUserHost() {
+  function isCurrentUserPrimaryHost() {
     return !state.hostSessionId || state.hostSessionId === state.user.sessionId;
+  }
+
+  function isCurrentUserCoHost() {
+    return !!(state.coHostSessionIds && state.coHostSessionIds.has(state.user.sessionId));
+  }
+
+  function isCurrentUserHost() {
+    return isCurrentUserPrimaryHost() || isCurrentUserCoHost();
   }
 
   function canCurrentUserDraw() {
@@ -2299,8 +2324,187 @@
     return isCurrentUserHost();
   }
 
+  function openManageHostsModal() {
+    renderManageHostsModal();
+    if (manageHostsModal) manageHostsModal.classList.add('active');
+  }
+
+  function closeManageHostsModal() {
+    if (manageHostsModal) manageHostsModal.classList.remove('active');
+  }
+
+  function renderManageHostsModal() {
+    if (!hostsParticipantsList) return;
+    hostsParticipantsList.innerHTML = '';
+
+    const isSelfPrimary = isCurrentUserPrimaryHost();
+    const isSelfCoHost = isCurrentUserCoHost();
+
+    // Update current role badge in header
+    if (myRoleIndicator) {
+      if (isSelfPrimary) {
+        myRoleIndicator.textContent = '👑 Primary Host';
+        myRoleIndicator.style.color = '#EAB308';
+      } else if (isSelfCoHost) {
+        myRoleIndicator.textContent = '⭐ Co-Host';
+        myRoleIndicator.style.color = '#3B82F6';
+      } else {
+        myRoleIndicator.textContent = '👤 Participant';
+        myRoleIndicator.style.color = 'var(--text-muted)';
+      }
+    }
+
+    // Build all users list: Self + Collaborators
+    const allUsers = [];
+
+    // Self
+    allUsers.push({
+      sessionId: state.user.sessionId,
+      id: state.user.id || 'self',
+      rawName: state.user.name || state.user.username || 'You',
+      avatar: state.user.avatar,
+      color: state.user.color,
+      isSelf: true,
+      isPrimaryHost: isSelfPrimary,
+      isCoHost: isSelfCoHost
+    });
+
+    // Peers
+    state.collaborators.forEach((peer) => {
+      const isPeerPrimary = state.hostSessionId && peer.sessionId === state.hostSessionId;
+      const isPeerCo = !!(state.coHostSessionIds && state.coHostSessionIds.has(peer.sessionId));
+      allUsers.push({
+        sessionId: peer.sessionId || peer.id,
+        id: peer.id,
+        rawName: peer.name || 'Collaborator',
+        avatar: peer.avatar,
+        color: peer.color || '#FF6B4A',
+        isSelf: false,
+        isPrimaryHost: isPeerPrimary,
+        isCoHost: isPeerCo
+      });
+    });
+
+    if (hostsParticipantCount) {
+      hostsParticipantCount.textContent = allUsers.length;
+    }
+
+    allUsers.forEach((userItem) => {
+      const item = document.createElement('div');
+      item.className = 'host-participant-item';
+
+      // Left column: Avatar + Details
+      const leftCol = document.createElement('div');
+      leftCol.className = 'host-user-left';
+
+      const avWrap = document.createElement('div');
+      avWrap.className = 'host-user-avatar-wrap';
+
+      const avDiv = document.createElement('div');
+      avDiv.className = 'host-user-avatar';
+      avDiv.style.setProperty('--c', userItem.color);
+      setAvatarElement(avDiv, userItem.avatar, (userItem.rawName || 'U').charAt(0).toUpperCase());
+
+      // Role badge icon over avatar
+      if (userItem.isPrimaryHost) {
+        const crown = document.createElement('span');
+        crown.className = 'host-role-badge-icon';
+        crown.textContent = '👑';
+        crown.title = 'Primary Host';
+        avWrap.appendChild(crown);
+      } else if (userItem.isCoHost) {
+        const star = document.createElement('span');
+        star.className = 'host-role-badge-icon';
+        star.textContent = '⭐';
+        star.title = 'Co-Host';
+        avWrap.appendChild(star);
+      }
+
+      avWrap.appendChild(avDiv);
+      leftCol.appendChild(avWrap);
+
+      const detailsDiv = document.createElement('div');
+      detailsDiv.className = 'host-user-details';
+
+      const nameRow = document.createElement('div');
+      nameRow.className = 'host-user-name-row';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'host-user-name';
+      nameSpan.textContent = userItem.rawName;
+      nameRow.appendChild(nameSpan);
+
+      if (userItem.isSelf) {
+        const selfTag = document.createElement('span');
+        selfTag.className = 'host-self-tag';
+        selfTag.textContent = 'YOU';
+        nameRow.appendChild(selfTag);
+      }
+
+      detailsDiv.appendChild(nameRow);
+
+      const roleText = document.createElement('span');
+      roleText.className = `host-user-status-text ${userItem.isPrimaryHost ? 'is-primary' : (userItem.isCoHost ? 'is-cohost' : '')}`;
+      if (userItem.isPrimaryHost) {
+        roleText.textContent = '👑 Primary Host (Room Owner)';
+      } else if (userItem.isCoHost) {
+        roleText.textContent = '⭐ Co-Host (Can Present & Draw)';
+      } else {
+        roleText.textContent = '👤 Participant';
+      }
+      detailsDiv.appendChild(roleText);
+      leftCol.appendChild(detailsDiv);
+      item.appendChild(leftCol);
+
+      // Right column: Actions (Only visible to Primary Host, and not on self)
+      if (isSelfPrimary && !userItem.isSelf) {
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'host-user-actions';
+
+        // 1. Co-Host Toggle Button
+        const coHostBtn = document.createElement('button');
+        coHostBtn.className = `btn-host-action btn-cohost-toggle ${userItem.isCoHost ? 'active' : ''}`;
+        coHostBtn.innerHTML = userItem.isCoHost ? '<span>⭐ Remove Co-Host</span>' : '<span>⭐ Make Co-Host</span>';
+        coHostBtn.title = userItem.isCoHost ? 'Revoke Co-Host access' : 'Grant Co-Host presentation and draw access';
+        coHostBtn.addEventListener('click', () => {
+          sound.playClick();
+          socket.emit('room:toggle_cohost', {
+            targetSessionId: userItem.sessionId,
+            isCoHost: !userItem.isCoHost
+          });
+        });
+        actionsDiv.appendChild(coHostBtn);
+
+        // 2. Transfer Host Button
+        const transferBtn = document.createElement('button');
+        transferBtn.className = 'btn-host-action btn-transfer-action';
+        transferBtn.innerHTML = '<span>👑 Transfer Host</span>';
+        transferBtn.title = `Transfer full room ownership to ${userItem.rawName}`;
+        transferBtn.addEventListener('click', () => {
+          sound.playClick();
+          const confirmed = window.confirm(
+            `👑 Transfer Room Host Ownership?\n\nAre you sure you want to transfer full Primary Host ownership to "${userItem.rawName}"?\n\nYou will step down to a regular participant.`
+          );
+          if (confirmed) {
+            socket.emit('room:transfer_host', {
+              targetSessionId: userItem.sessionId
+            });
+            closeManageHostsModal();
+          }
+        });
+        actionsDiv.appendChild(transferBtn);
+
+        item.appendChild(actionsDiv);
+      }
+
+      hostsParticipantsList.appendChild(item);
+    });
+  }
+
   function updateRoomModeUI() {
-    const isHost = isCurrentUserHost();
+    const isPrimary = isCurrentUserPrimaryHost();
+    const isCoHost = isCurrentUserCoHost();
+    const isHost = isPrimary || isCoHost;
     const isFriendly = !state.roomMode || state.roomMode === 'friendly';
 
     if (btnModeFriendly) btnModeFriendly.classList.toggle('active', isFriendly);
@@ -2314,7 +2518,11 @@
       } else {
         roomModeBtn.classList.add('is-host-mode');
         if (roomModeIcon) roomModeIcon.textContent = '🎓';
-        if (roomModeLabel) roomModeLabel.textContent = isHost ? 'Host Mode' : 'View Only (Host Mode)';
+        if (roomModeLabel) {
+          if (isPrimary) roomModeLabel.textContent = 'Host Mode (Owner)';
+          else if (isCoHost) roomModeLabel.textContent = 'Host Mode (Co-Host)';
+          else roomModeLabel.textContent = 'View Only (Host Mode)';
+        }
       }
 
       if (isHost) {
@@ -2322,7 +2530,7 @@
         roomModeBtn.title = 'Switch Canvas Access Mode (Friendly vs Host Presentation)';
       } else {
         roomModeBtn.classList.add('read-only-badge');
-        roomModeBtn.title = isFriendly ? 'Friendly Mode: Everyone can draw' : 'Presentation Mode: Controlled by Host';
+        roomModeBtn.title = isFriendly ? 'Friendly Mode: Everyone can draw' : 'Presentation Mode: Controlled by Hosts';
       }
     }
 
@@ -3551,6 +3759,24 @@
   shortcutsNavBtn.addEventListener('click', () => shortcutsModal.classList.add('active'));
   closeShortcutsBtn.addEventListener('click', () => shortcutsModal.classList.remove('active'));
 
+  if (btnOpenManageHosts) {
+    btnOpenManageHosts.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dismissAllPopovers();
+      openManageHostsModal();
+    });
+  }
+
+  if (closeManageHostsBtn) {
+    closeManageHostsBtn.addEventListener('click', closeManageHostsModal);
+  }
+
+  if (manageHostsModal) {
+    manageHostsModal.addEventListener('click', (e) => {
+      if (e.target === manageHostsModal) closeManageHostsModal();
+    });
+  }
+
   if (soundToggleBtn) {
     soundToggleBtn.addEventListener('click', () => {
       sound.muted = !sound.muted;
@@ -3693,6 +3919,7 @@
     else if (key === '?') { shortcutsModal.classList.toggle('active'); }
     else if (key === 'escape') {
       shortcutsModal.classList.remove('active');
+      if (manageHostsModal) manageHostsModal.classList.remove('active');
       registerModal.classList.remove('active');
       loginModal.classList.remove('active');
       profileHubModal.classList.remove('active');
@@ -3785,6 +4012,7 @@
     state.roomId = data.roomId;
     state.user.id = data.selfId;
     state.hostSessionId = data.hostSessionId || state.user.sessionId;
+    state.coHostSessionIds = new Set(data.coHostSessionIds || []);
     state.roomMode = data.roomMode || 'friendly';
 
     state.elements = [];
@@ -3821,30 +4049,73 @@
 
     updateCollaboratorsUI();
     updateRoomModeUI();
+    renderManageHostsModal();
     redrawBoard();
   });
 
-  socket.on('room:host_changed', ({ hostSessionId }) => {
-    state.hostSessionId = hostSessionId;
+  socket.on('room:hosts_updated', ({ hostSessionId, coHostSessionIds, action, previousHostSessionId, newHostSessionId, fromName, toName, targetSessionId, isCoHost, targetName }) => {
+    if (hostSessionId) state.hostSessionId = hostSessionId;
+    state.coHostSessionIds = new Set(coHostSessionIds || []);
+
     updateCollaboratorsUI();
     updateRoomModeUI();
+    renderManageHostsModal();
+
+    if (action === 'transfer') {
+      sound.playPop();
+      if (newHostSessionId === state.user.sessionId) {
+        showToast(`👑 <strong>You are now the Primary Host!</strong> (${escapeHtml(fromName || 'Previous Host')} transferred room ownership to you)`, 'host');
+      } else if (previousHostSessionId === state.user.sessionId) {
+        showToast(`👑 <strong>Host transferred</strong>: You transferred Primary Host ownership to <strong>${escapeHtml(toName || 'teammate')}</strong>.`, 'info');
+      } else {
+        showToast(`👑 <strong>${escapeHtml(fromName || 'Host')}</strong> transferred Room Host ownership to <strong>${escapeHtml(toName || 'teammate')}</strong>.`, 'info');
+      }
+    } else if (action === 'cohost') {
+      sound.playPop();
+      if (targetSessionId === state.user.sessionId) {
+        if (isCoHost) {
+          showToast(`⭐ <strong>You are now a Co-Host!</strong> You can present and toggle room modes.`, 'host');
+        } else {
+          showToast(`⭐ Your Co-Host access was removed.`, 'info');
+        }
+      } else {
+        if (isCoHost) {
+          showToast(`⭐ <strong>${escapeHtml(targetName || 'Teammate')}</strong> is now a Co-Host.`, 'info');
+        } else {
+          showToast(`⭐ <strong>${escapeHtml(targetName || 'Teammate')}</strong> is no longer a Co-Host.`, 'info');
+        }
+      }
+    } else if (action === 'auto_handover') {
+      if (newHostSessionId === state.user.sessionId) {
+        showToast(`👑 <strong>You are now the Room Host!</strong> (Previous host disconnected)`, 'host');
+      }
+    }
+  });
+
+  socket.on('room:host_changed', ({ hostSessionId }) => {
+    if (hostSessionId) state.hostSessionId = hostSessionId;
+    updateCollaboratorsUI();
+    updateRoomModeUI();
+    renderManageHostsModal();
     if (state.hostSessionId === state.user.sessionId) {
       showToast('👑 <strong>You are the room host!</strong>', 'host');
     }
   });
 
-  socket.on('room:mode_changed', ({ mode, hostSessionId }) => {
+  socket.on('room:mode_changed', ({ mode, hostSessionId, coHostSessionIds }) => {
     state.roomMode = mode;
     if (hostSessionId) state.hostSessionId = hostSessionId;
+    if (coHostSessionIds) state.coHostSessionIds = new Set(coHostSessionIds);
     updateRoomModeUI();
     updateCollaboratorsUI();
+    renderManageHostsModal();
 
     if (mode === 'host') {
       sound.playPop();
       if (isCurrentUserHost()) {
         showToast('🎓 <strong>Host Mode active</strong>: You are presenting. Viewers are in View-Only mode.', 'host');
       } else {
-        showToast('🎓 <strong>Presentation Mode</strong>: Host is presenting. Canvas is now View-Only.', 'info');
+        showToast('🎓 <strong>Presentation Mode</strong>: Hosts are presenting. Canvas is now View-Only.', 'info');
       }
     } else {
       sound.playPop();
@@ -4284,22 +4555,29 @@
     let count = 0;
 
     const isSelfOnline = socket && socket.connected && navigator.onLine;
-    const isSelfHost = !state.hostSessionId || state.hostSessionId === state.user.sessionId;
+    const isSelfPrimary = isCurrentUserPrimaryHost();
+    const isSelfCoHost = isCurrentUserCoHost();
 
     // Self Avatar
     const selfAv = document.createElement('div');
     selfAv.className = 'collaborator-avatar';
     selfAv.style.setProperty('--c', state.user.color);
     setAvatarElement(selfAv, state.user.avatar, (state.user.name || 'Y').charAt(0).toUpperCase());
-    selfAv.title = `${state.user.name || state.user.username} (You)${isSelfHost ? ' 👑 Room Host' : ''} — ${isSelfOnline ? 'Connected' : 'Offline'}`;
+    selfAv.title = `${state.user.name || state.user.username} (You)${isSelfPrimary ? ' 👑 Primary Host' : (isSelfCoHost ? ' ⭐ Co-Host' : '')} — Click to Manage Hosts`;
 
-    // Host Crown Badge
-    if (isSelfHost) {
+    // Host / Co-Host Crown / Star Badge
+    if (isSelfPrimary) {
       const crown = document.createElement('span');
       crown.className = 'avatar-crown-badge';
       crown.textContent = '👑';
-      crown.title = 'Room Host';
+      crown.title = 'Primary Host';
       selfAv.appendChild(crown);
+    } else if (isSelfCoHost) {
+      const star = document.createElement('span');
+      star.className = 'avatar-crown-badge';
+      star.textContent = '⭐';
+      star.title = 'Co-Host';
+      selfAv.appendChild(star);
     }
 
     // Live status dot badge
@@ -4310,8 +4588,13 @@
     // Instant Name Tooltip on Cursor Hover
     const selfTooltip = document.createElement('div');
     selfTooltip.className = 'avatar-name-tooltip';
-    selfTooltip.innerHTML = `${isSelfHost ? '👑 ' : ''}<span>${state.user.name || state.user.username} (You)</span>`;
+    selfTooltip.innerHTML = `${isSelfPrimary ? '👑 ' : (isSelfCoHost ? '⭐ ' : '')}<span>${state.user.name || state.user.username} (You)</span>`;
     selfAv.appendChild(selfTooltip);
+
+    selfAv.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openManageHostsModal();
+    });
 
     collaboratorStack.appendChild(selfAv);
     count++;
@@ -4319,21 +4602,28 @@
     state.collaborators.forEach((peer) => {
       if (count < maxVisible) {
         const isPeerOnline = peer.isOffline !== true;
-        const isPeerHost = state.hostSessionId && peer.sessionId === state.hostSessionId;
+        const isPeerPrimary = state.hostSessionId && peer.sessionId === state.hostSessionId;
+        const isPeerCo = !!(state.coHostSessionIds && state.coHostSessionIds.has(peer.sessionId));
 
         const av = document.createElement('div');
         av.className = 'collaborator-avatar';
         av.style.setProperty('--c', peer.color || '#FF6B4A');
         setAvatarElement(av, peer.avatar, (peer.name || 'C').charAt(0).toUpperCase());
-        av.title = `${peer.name}${isPeerHost ? ' 👑 Room Host' : ''} — ${isPeerOnline ? 'Connected' : 'Offline'}`;
+        av.title = `${peer.name}${isPeerPrimary ? ' 👑 Primary Host' : (isPeerCo ? ' ⭐ Co-Host' : '')} — ${isPeerOnline ? 'Connected' : 'Offline'}`;
 
-        // Host Crown Badge
-        if (isPeerHost) {
+        // Host / Co-Host Badge
+        if (isPeerPrimary) {
           const crown = document.createElement('span');
           crown.className = 'avatar-crown-badge';
           crown.textContent = '👑';
-          crown.title = 'Room Host';
+          crown.title = 'Primary Host';
           av.appendChild(crown);
+        } else if (isPeerCo) {
+          const star = document.createElement('span');
+          star.className = 'avatar-crown-badge';
+          star.textContent = '⭐';
+          star.title = 'Co-Host';
+          av.appendChild(star);
         }
 
         // Status dot badge
@@ -4344,7 +4634,7 @@
         // Instant Name Tooltip on Cursor Hover
         const peerTooltip = document.createElement('div');
         peerTooltip.className = 'avatar-name-tooltip';
-        peerTooltip.innerHTML = `${isPeerHost ? '👑 ' : ''}<span>${peer.name || 'Collaborator'}</span>`;
+        peerTooltip.innerHTML = `${isPeerPrimary ? '👑 ' : (isPeerCo ? '⭐ ' : '')}<span>${peer.name || 'Collaborator'}</span>`;
         av.appendChild(peerTooltip);
 
         av.addEventListener('click', (e) => {
@@ -4364,6 +4654,11 @@
       const extra = document.createElement('div');
       extra.className = 'collaborator-avatar avatar-count';
       extra.textContent = `+${count - maxVisible}`;
+      extra.title = 'Click to view all participants & manage hosts';
+      extra.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openManageHostsModal();
+      });
       collaboratorStack.appendChild(extra);
     }
 

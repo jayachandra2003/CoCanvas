@@ -27,18 +27,24 @@ function getOrCreateRoom(roomId) {
       users: new Map(),
       messages: [],
       hostSessionId: null,
+      coHostSessionIds: new Set(),
       hostDisconnectTimeout: null,
-      mode: 'friendly' // 'friendly' (all can draw) | 'host' (presentation mode, only host can draw)
+      mode: 'friendly' // 'friendly' (all can draw) | 'host' (presentation mode, only hosts can draw)
     });
   }
   return rooms.get(roomId);
 }
 
+function isUserAnyHost(room, userSessionId) {
+  if (!room || !userSessionId) return false;
+  return room.hostSessionId === userSessionId || (room.coHostSessionIds && room.coHostSessionIds.has(userSessionId));
+}
+
 function canUserModifyCanvas(room, userSessionId) {
   if (!room) return false;
   if (!room.mode || room.mode === 'friendly') return true;
-  // In host mode, only host can draw
-  return room.hostSessionId && room.hostSessionId === userSessionId;
+  // In host mode, Primary Host and Co-Hosts can draw
+  return isUserAnyHost(room, userSessionId);
 }
 
 io.on('connection', (socket) => {
@@ -82,7 +88,7 @@ io.on('connection', (socket) => {
         room.hostDisconnectTimeout = null;
       }
     } else if (!room.hostSessionId) {
-      // First person to create/join the room becomes host
+      // First person to create/join the room becomes primary host
       room.hostSessionId = userSessionId;
     }
 
@@ -99,11 +105,15 @@ io.on('connection', (socket) => {
       selfId: socket.id,
       selfSessionId: userSessionId,
       hostSessionId: room.hostSessionId,
+      coHostSessionIds: Array.from(room.coHostSessionIds || []),
       roomMode: room.mode || 'friendly'
     });
 
     socket.to(roomId).emit('user:joined', currentUser);
-    socket.to(roomId).emit('room:host_changed', { hostSessionId: room.hostSessionId });
+    socket.to(roomId).emit('room:hosts_updated', {
+      hostSessionId: room.hostSessionId,
+      coHostSessionIds: Array.from(room.coHostSessionIds || [])
+    });
   });
 
   // Host Mode Switcher (Friendly vs Host / Presentation Mode)
@@ -113,15 +123,92 @@ io.on('connection', (socket) => {
     if (!room) return;
     
     const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
-    // Only the host can toggle room mode
-    if (room.hostSessionId && room.hostSessionId !== userSessionId) {
+    // Primary Host and Co-Hosts can toggle room mode
+    if (!isUserAnyHost(room, userSessionId)) {
       return;
     }
 
     if (mode === 'friendly' || mode === 'host') {
       room.mode = mode;
-      io.to(currentRoomId).emit('room:mode_changed', { mode: room.mode, hostSessionId: room.hostSessionId });
+      io.to(currentRoomId).emit('room:mode_changed', {
+        mode: room.mode,
+        hostSessionId: room.hostSessionId,
+        coHostSessionIds: Array.from(room.coHostSessionIds || [])
+      });
     }
+  });
+
+  // Transfer Primary Host Ownership
+  socket.on('room:transfer_host', ({ targetSessionId }) => {
+    if (!currentRoomId || !targetSessionId) return;
+    const room = rooms.get(currentRoomId);
+    if (!room) return;
+
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    // Only current Primary Host can transfer host ownership
+    if (room.hostSessionId !== userSessionId) return;
+
+    let targetUser = null;
+    for (const u of room.users.values()) {
+      if (u.sessionId === targetSessionId) {
+        targetUser = u;
+        break;
+      }
+    }
+    if (!targetUser) return;
+
+    const previousHostSessionId = room.hostSessionId;
+    room.hostSessionId = targetSessionId;
+    if (room.coHostSessionIds) {
+      room.coHostSessionIds.delete(targetSessionId);
+    }
+
+    io.to(currentRoomId).emit('room:hosts_updated', {
+      hostSessionId: room.hostSessionId,
+      coHostSessionIds: Array.from(room.coHostSessionIds || []),
+      action: 'transfer',
+      previousHostSessionId,
+      newHostSessionId: targetSessionId,
+      fromName: currentUser.name || 'Previous Host',
+      toName: targetUser.name || 'New Host'
+    });
+  });
+
+  // Share Host (Add/Remove Co-Host)
+  socket.on('room:toggle_cohost', ({ targetSessionId, isCoHost }) => {
+    if (!currentRoomId || !targetSessionId) return;
+    const room = rooms.get(currentRoomId);
+    if (!room) return;
+
+    const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
+    // Only current Primary Host can grant/revoke co-host access
+    if (room.hostSessionId !== userSessionId) return;
+    if (targetSessionId === room.hostSessionId) return;
+
+    if (!room.coHostSessionIds) room.coHostSessionIds = new Set();
+
+    let targetUser = null;
+    for (const u of room.users.values()) {
+      if (u.sessionId === targetSessionId) {
+        targetUser = u;
+        break;
+      }
+    }
+
+    if (isCoHost) {
+      room.coHostSessionIds.add(targetSessionId);
+    } else {
+      room.coHostSessionIds.delete(targetSessionId);
+    }
+
+    io.to(currentRoomId).emit('room:hosts_updated', {
+      hostSessionId: room.hostSessionId,
+      coHostSessionIds: Array.from(room.coHostSessionIds || []),
+      action: 'cohost',
+      targetSessionId,
+      isCoHost: !!isCoHost,
+      targetName: targetUser ? targetUser.name : 'Teammate'
+    });
   });
 
   // 6. Real-Time Canvas Events
@@ -264,6 +351,41 @@ io.on('connection', (socket) => {
     io.to(currentRoomId).emit('chat:cleared');
   });
 
+  function handoverHost(room, rId) {
+    if (room.hostDisconnectTimeout) {
+      clearTimeout(room.hostDisconnectTimeout);
+      room.hostDisconnectTimeout = null;
+    }
+    let nextHost = null;
+    // 1. Try to promote an online Co-Host first
+    if (room.coHostSessionIds && room.coHostSessionIds.size > 0) {
+      for (const u of room.users.values()) {
+        if (room.coHostSessionIds.has(u.sessionId)) {
+          nextHost = u;
+          room.coHostSessionIds.delete(u.sessionId);
+          break;
+        }
+      }
+    }
+    // 2. Otherwise promote next available user in room
+    if (!nextHost) {
+      nextHost = room.users.values().next().value;
+    }
+
+    if (nextHost) {
+      room.hostSessionId = nextHost.sessionId;
+      io.to(rId).emit('room:hosts_updated', {
+        hostSessionId: room.hostSessionId,
+        coHostSessionIds: Array.from(room.coHostSessionIds || []),
+        action: 'auto_handover',
+        newHostSessionId: room.hostSessionId,
+        toName: nextHost.name || 'New Host'
+      });
+    } else {
+      room.hostSessionId = null;
+    }
+  }
+
   // Explicit Leave Room
   socket.on('room:leave', () => {
     if (currentRoomId) {
@@ -272,6 +394,9 @@ io.on('connection', (socket) => {
         const leavingUser = room.users.get(socket.id);
         const userSessionId = (leavingUser && leavingUser.sessionId) || (currentUser && currentUser.sessionId) || socket.id;
         room.users.delete(socket.id);
+        if (room.coHostSessionIds) {
+          room.coHostSessionIds.delete(userSessionId);
+        }
 
         socket.to(currentRoomId).emit('user:left', {
           socketId: socket.id,
@@ -279,19 +404,9 @@ io.on('connection', (socket) => {
           avatar: leavingUser ? leavingUser.avatar : (currentUser ? currentUser.avatar : '👤')
         });
 
-        // If the leaving user was the host, immediately transfer host to next person
+        // If the leaving user was the host, immediately transfer host
         if (room.hostSessionId === userSessionId) {
-          if (room.hostDisconnectTimeout) {
-            clearTimeout(room.hostDisconnectTimeout);
-            room.hostDisconnectTimeout = null;
-          }
-          const nextUser = room.users.values().next().value;
-          if (nextUser) {
-            room.hostSessionId = nextUser.sessionId;
-            io.to(currentRoomId).emit('room:host_changed', { hostSessionId: room.hostSessionId });
-          } else {
-            room.hostSessionId = null;
-          }
+          handoverHost(room, currentRoomId);
         }
       }
       socket.leave(currentRoomId);
@@ -317,13 +432,7 @@ io.on('connection', (socket) => {
         if (room.hostSessionId === userSessionId) {
           if (room.hostDisconnectTimeout) clearTimeout(room.hostDisconnectTimeout);
           room.hostDisconnectTimeout = setTimeout(() => {
-            const nextUser = room.users.values().next().value;
-            if (nextUser) {
-              room.hostSessionId = nextUser.sessionId;
-              io.to(currentRoomId).emit('room:host_changed', { hostSessionId: room.hostSessionId });
-            } else {
-              room.hostSessionId = null;
-            }
+            handoverHost(room, currentRoomId);
           }, 5000);
         }
       }
