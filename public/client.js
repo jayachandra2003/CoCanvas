@@ -6012,8 +6012,13 @@
     }
   });
 
-  // Global window wheel zoom interceptor (prevents browser full-page scaling on Ctrl+Wheel and Touchpad Pinch)
+  // Global window wheel zoom interceptor (prevents browser full-page scaling on Ctrl+Wheel and Touchpad Pinch inside canvas room)
   window.addEventListener('wheel', (e) => {
+    // If on landing screen, do not intercept wheel events so user can naturally scroll the landing page with mouse wheel
+    if (landingScreen && landingScreen.classList.contains('active')) {
+      return;
+    }
+
     const isScrollable = e.target.closest('#chatMessageList, #chatEmojiGridScroll, #reactionScrollArea, .reaction-catalog-grid, .modal-card, .shortcuts-card, .host-users-list, textarea');
     if (e.ctrlKey || e.metaKey || !isScrollable) {
       e.preventDefault();
@@ -6023,10 +6028,19 @@
     }
   }, { passive: false });
 
-  // Prevent browser viewport scaling on Safari/iOS trackpad/touch gestures so only canvas zooms
-  document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
-  document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
-  document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+  // Prevent browser viewport scaling on Safari/iOS trackpad/touch gestures so only canvas zooms inside the room
+  document.addEventListener('gesturestart', (e) => {
+    if (landingScreen && landingScreen.classList.contains('active')) return;
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('gesturechange', (e) => {
+    if (landingScreen && landingScreen.classList.contains('active')) return;
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('gestureend', (e) => {
+    if (landingScreen && landingScreen.classList.contains('active')) return;
+    e.preventDefault();
+  }, { passive: false });
 
   window.addEventListener('keyup', (e) => {
     if (e.key === ' ') {
