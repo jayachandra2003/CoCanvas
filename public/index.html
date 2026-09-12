@@ -332,6 +332,18 @@
               </svg>
             </button>
 
+            <!-- Toggle Collaborator Cursors Visibility (Show / Hide) -->
+            <button class="nav-btn icon-btn" id="toggleCursorsBtn" title="Toggle Collaborators' Cursors (Alt + C)">
+              <svg class="icon-cursor-visible" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 3 7 18 3-7 7-3L3 3z"></path>
+                <path d="m13 13 4 4"></path>
+              </svg>
+              <svg class="icon-cursor-hidden hidden" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 3 7 18 3-7 7-3L3 3z"></path>
+                <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2.3"></line>
+              </svg>
+            </button>
+
 
 
             <!-- Export Dropdown -->
@@ -487,6 +499,34 @@
           <form class="chat-input-form" id="chatInputForm">
             <input type="text" id="chatMessageInput" class="chat-text-input" placeholder="Type a message or use voice..." maxlength="800" autocomplete="off" />
 
+            <!-- Emoji Picker Popover Trigger for ChatSpace -->
+            <div class="chat-emoji-container" id="chatEmojiContainer">
+              <button type="button" class="chat-tool-btn chat-emoji-toggle-btn" id="btnChatEmojiPicker" title="Insert Emoji">
+                <span class="chat-btn-emoji-icon">😊</span>
+              </button>
+
+              <div class="chat-emoji-popover glass-panel" id="chatEmojiPopover">
+                <div class="chat-emoji-popover-header">
+                  <span class="chat-emoji-popover-title">✨ Emojis</span>
+                  <input type="text" id="chatEmojiSearchInput" class="chat-emoji-search" placeholder="Search emojis..." autocomplete="off" />
+                </div>
+
+                <div class="chat-emoji-tabs" id="chatEmojiTabs">
+                  <button type="button" class="chat-emoji-tab active" data-cat="all">🌟 All</button>
+                  <button type="button" class="chat-emoji-tab" data-cat="smileys">😀</button>
+                  <button type="button" class="chat-emoji-tab" data-cat="people_gestures">👋</button>
+                  <button type="button" class="chat-emoji-tab" data-cat="animals_nature">🐱</button>
+                  <button type="button" class="chat-emoji-tab" data-cat="food_drink">🍕</button>
+                  <button type="button" class="chat-emoji-tab" data-cat="objects_activities">🎯</button>
+                  <button type="button" class="chat-emoji-tab" data-cat="symbols_hearts">💖</button>
+                </div>
+
+                <div class="chat-emoji-grid-scroll" id="chatEmojiGridScroll">
+                  <!-- Dynamically populated with all emojis -->
+                </div>
+              </div>
+            </div>
+
             <button type="button" class="chat-mic-btn" id="btnVoiceChat" title="Voice Input (Speech to Text)">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
@@ -531,30 +571,190 @@
             <span class="hotkey-indicator">K</span>
           </button>
 
-          <button class="dock-btn" data-tool="pen" id="toolPen" title="Smooth Pen (P)">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
-              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
-              <circle cx="11" cy="11" r="2"></circle>
-            </svg>
-            <span class="hotkey-indicator">P</span>
+        <!-- Brushes Popover Gallery (MS Paint Style) -->
+        <div class="dock-section popover-container">
+          <button class="dock-btn popover-trigger ms-brush-trigger-btn" id="brushPopoverBtn" data-tool="brush" title="Brushes Gallery (P, H)">
+            <span id="activeBrushIcon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                <circle cx="11" cy="11" r="2"></circle>
+              </svg>
+            </span>
+            <span class="chevron">▾</span>
           </button>
 
-          <button class="dock-btn" data-tool="highlighter" id="toolHighlighter" title="Highlighter (H)">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 11l-6 6v3h3l6-6"></path>
-              <path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path>
-            </svg>
-            <span class="hotkey-indicator">H</span>
-          </button>
+          <div class="popover-menu glass-panel ms-brushes-gallery-popover" id="brushesPopover">
+            <!-- Left Pane: 9 MS Paint Brushes -->
+            <div class="ms-brushes-list">
+              <!-- 1. Brush -->
+              <button type="button" class="brush-item active" data-tool="brush" title="Brush (P)">
+                <span class="brush-name">Brush</span>
+                <span class="brush-preview preview-round">
+                  <svg viewBox="0 0 70 18" width="70" height="18"><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/></svg>
+                </span>
+              </button>
+              <!-- 2. Calligraphy brush -->
+              <button type="button" class="brush-item" data-tool="calligraphy-brush" title="Calligraphy brush">
+                <span class="brush-name">Calligraphy brush</span>
+                <span class="brush-preview preview-cal-brush">
+                  <svg viewBox="0 0 70 18" width="70" height="18"><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square"/></svg>
+                </span>
+              </button>
+              <!-- 3. Calligraphy pen -->
+              <button type="button" class="brush-item" data-tool="calligraphy-pen" title="Calligraphy pen">
+                <span class="brush-name">Calligraphy pen</span>
+                <span class="brush-preview preview-cal-pen">
+                  <svg viewBox="0 0 70 18" width="70" height="18"><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="square"/></svg>
+                </span>
+              </button>
+              <!-- 4. Airbrush -->
+              <button type="button" class="brush-item" data-tool="airbrush" title="Airbrush">
+                <span class="brush-name">Airbrush</span>
+                <span class="brush-preview preview-airbrush">
+                  <svg viewBox="0 0 70 18" width="70" height="18"><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="1 3" stroke-linecap="round" opacity="0.85"/></svg>
+                </span>
+              </button>
+              <!-- 5. Oil brush -->
+              <button type="button" class="brush-item" data-tool="oil-brush" title="Oil brush">
+                <span class="brush-name">Oil brush</span>
+                <span class="brush-preview preview-oil">
+                  <svg viewBox="0 0 70 18" width="70" height="18"><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="#FFFFFF" stroke-width="1.2" opacity="0.5"/></svg>
+                </span>
+              </button>
+              <!-- 6. Crayon -->
+              <button type="button" class="brush-item" data-tool="crayon" title="Crayon">
+                <span class="brush-name">Crayon</span>
+                <span class="brush-preview preview-crayon">
+                  <svg viewBox="0 0 70 18" width="70" height="18"><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="5.5" stroke-dasharray="3 1.5" stroke-linecap="round"/></svg>
+                </span>
+              </button>
+              <!-- 7. Marker -->
+              <button type="button" class="brush-item" data-tool="marker" title="Marker (H)">
+                <span class="brush-name">Marker</span>
+                <span class="brush-preview preview-marker">
+                  <svg viewBox="0 0 70 18" width="70" height="18"><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="6.5" opacity="0.8" stroke-linecap="square"/></svg>
+                </span>
+              </button>
+              <!-- 8. Natural pencil -->
+              <button type="button" class="brush-item" data-tool="pencil" title="Natural pencil">
+                <span class="brush-name">Natural pencil</span>
+                <span class="brush-preview preview-pencil">
+                  <svg viewBox="0 0 70 18" width="70" height="18"><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="2 1" opacity="0.85"/></svg>
+                </span>
+              </button>
+              <!-- 9. Watercolour brush -->
+              <button type="button" class="brush-item" data-tool="watercolor" title="Watercolour brush">
+                <span class="brush-name">Watercolour brush</span>
+                <span class="brush-preview preview-watercolor">
+                  <svg viewBox="0 0 70 18" width="70" height="18"><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="7" opacity="0.45" stroke-linecap="round"/><path d="M4 11 Q 20 4, 35 11 T 66 11" fill="none" stroke="currentColor" stroke-width="3" opacity="0.8" stroke-linecap="round"/></svg>
+                </span>
+              </button>
+            </div>
 
-          <button class="dock-btn" data-tool="eraser" id="toolEraser" title="Eraser (E)">
+            <!-- Vertical Separator -->
+            <div class="brush-popover-vsep"></div>
+
+            <!-- Right Pane: Volume-Style Size Stepper & Slider with Numbers -->
+            <div class="brush-size-panel">
+              <div class="brush-size-header">
+                <span class="brush-size-title">Size</span>
+                <span class="brush-size-val-badge" id="brushSizeValBadge">3 px</span>
+              </div>
+
+              <!-- Live Diameter Preview Circle -->
+              <div class="brush-size-preview-box">
+                <div class="brush-size-preview-dot" id="brushSizePreviewDot"></div>
+              </div>
+
+              <!-- Volume-like Slider with - / + buttons -->
+              <div class="volume-stepper-row">
+                <button type="button" class="volume-step-btn" id="btnBrushSizeDec" title="Decrease Size ([)">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+                <div class="volume-slider-track">
+                  <input type="range" id="brushSizeSlider" class="volume-range-input" min="1" max="50" value="3" step="1" title="Adjust Brush Size" />
+                </div>
+                <button type="button" class="volume-step-btn" id="btnBrushSizeInc" title="Increase Size (])">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+              </div>
+
+              <!-- Number Presets -->
+              <div class="brush-size-presets-grid">
+                <button type="button" class="size-preset-btn" data-size="1">1</button>
+                <button type="button" class="size-preset-btn active" data-size="3">3</button>
+                <button type="button" class="size-preset-btn" data-size="5">5</button>
+                <button type="button" class="size-preset-btn" data-size="8">8</button>
+                <button type="button" class="size-preset-btn" data-size="12">12</button>
+                <button type="button" class="size-preset-btn" data-size="20">20</button>
+                <button type="button" class="size-preset-btn" data-size="32">32</button>
+                <button type="button" class="size-preset-btn" data-size="48">48</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Eraser Tool with Popover Size Controller -->
+        <div class="dock-section popover-container">
+          <button class="dock-btn popover-trigger ms-brush-trigger-btn" id="eraserPopoverBtn" data-tool="eraser" title="Eraser (E) - Click for Size Controller">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"></path>
               <path d="M22 21H7"></path>
               <path d="m5 11 9 9"></path>
             </svg>
+            <span class="chevron">▾</span>
             <span class="hotkey-indicator">E</span>
+          </button>
+
+          <div class="popover-menu glass-panel ms-eraser-popover" id="eraserPopover">
+            <div class="brush-size-panel eraser-size-panel">
+              <div class="brush-size-header">
+                <span class="brush-size-title">Eraser Size</span>
+                <span class="brush-size-val-badge" id="eraserSizeValBadge">20 px</span>
+              </div>
+
+              <!-- Live Eraser Preview Box -->
+              <div class="brush-size-preview-box">
+                <div class="eraser-size-preview-dot" id="eraserSizePreviewDot"></div>
+              </div>
+
+              <!-- Volume-like Slider with - / + buttons -->
+              <div class="volume-stepper-row">
+                <button type="button" class="volume-step-btn" id="btnEraserSizeDec" title="Decrease Size ([)">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+                <div class="volume-slider-track">
+                  <input type="range" id="eraserSizeSlider" class="volume-range-input" min="4" max="64" value="20" step="2" title="Adjust Eraser Size" />
+                </div>
+                <button type="button" class="volume-step-btn" id="btnEraserSizeInc" title="Increase Size (])">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+              </div>
+
+              <!-- Number Presets -->
+              <div class="brush-size-presets-grid eraser-size-presets-grid">
+                <button type="button" class="size-preset-btn eraser-preset-btn" data-size="6">6</button>
+                <button type="button" class="size-preset-btn eraser-preset-btn" data-size="12">12</button>
+                <button type="button" class="size-preset-btn eraser-preset-btn active" data-size="20">20</button>
+                <button type="button" class="size-preset-btn eraser-preset-btn" data-size="28">28</button>
+                <button type="button" class="size-preset-btn eraser-preset-btn" data-size="36">36</button>
+                <button type="button" class="size-preset-btn eraser-preset-btn" data-size="48">48</button>
+                <button type="button" class="size-preset-btn eraser-preset-btn" data-size="64">64</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+          <!-- Paint Bucket Fill Tool like MS Paint -->
+          <button class="dock-btn" data-tool="fill" id="toolFill" title="Fill with Color / Paint Bucket (B)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 11l-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11z"></path>
+              <path d="m5 2 5 5"></path>
+              <path d="M2 13h15"></path>
+              <path d="M22 20a2 2 0 1 1-4 0c0-1.6 2-4 2-4s2 2.4 2 4z" fill="currentColor"></path>
+            </svg>
+            <span class="hotkey-indicator">B</span>
           </button>
         </div>
 
@@ -562,29 +762,91 @@
 
         <!-- Shapes Popover -->
         <div class="dock-section popover-container">
-          <button class="dock-btn popover-trigger" id="shapePopoverBtn" data-tool="rect" title="Shapes (R, O, A, L)">
+          <button class="dock-btn popover-trigger" id="shapePopoverBtn" data-tool="rect" title="Shapes Gallery (Click to pick)">
             <span id="activeShapeIcon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="4.5" width="17" height="15"></rect></svg>
             </span>
             <span class="chevron">▾</span>
           </button>
-          <div class="popover-menu glass-panel" id="shapesPopover">
-            <button class="popover-item active" data-tool="rect" title="Rectangle (R)">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>
-              <span>Rectangle</span><kbd>R</kbd>
-            </button>
-            <button class="popover-item" data-tool="circle" title="Circle (O)">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle></svg>
-              <span>Circle</span><kbd>O</kbd>
-            </button>
-            <button class="popover-item" data-tool="arrow" title="Arrow (A)">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-              <span>Arrow</span><kbd>A</kbd>
-            </button>
-            <button class="popover-item" data-tool="line" title="Line (L)">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="4"></line></svg>
-              <span>Line</span><kbd>L</kbd>
-            </button>
+          <div class="popover-menu glass-panel ms-shapes-gallery-popover" id="shapesPopover">
+            <div class="ms-shapes-grid">
+              <!-- Row 1: Line, Curve, Oval, Rect, Rounded Rect, Polygon, Triangle -->
+              <button class="shape-grid-btn popover-item" data-tool="line" title="Line (L)">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="4"></line></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="curve" title="Curve">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 16 C 8 4, 16 20, 21 8"></path></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="circle" title="Oval / Circle (O)">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"></circle></svg>
+              </button>
+              <button class="shape-grid-btn popover-item active" data-tool="rect" title="Rectangle (R)">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="4.5" width="17" height="15"></rect></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="rounded-rect" title="Rounded Rectangle">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="4.5" width="17" height="15" rx="4"></rect></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="polygon" title="Polygon / Parallelogram">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="8 5 21 5 16 19 3 19"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="triangle" title="Triangle">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 4 21 20 3 20"></polygon></svg>
+              </button>
+
+              <!-- Row 2: Right Triangle, Diamond, Pentagon, Hexagon, Right Arrow, Left Arrow, Up Arrow -->
+              <button class="shape-grid-btn popover-item" data-tool="right-triangle" title="Right Triangle">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="4 4 4 20 20 20"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="diamond" title="Diamond / Rhombus">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 3 21 12 12 21 3 12"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="pentagon" title="Pentagon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 3 21 9.5 17.5 20 6.5 20 3 9.5"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="hexagon" title="Hexagon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 3 20.5 7.5 20.5 16.5 12 21 3.5 16.5 3.5 7.5"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="arrow-right" title="Right Arrow (A)">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="3 8.5 13 8.5 13 4 21 12 13 20 13 15.5 3 15.5"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="arrow-left" title="Left Arrow">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="21 8.5 11 8.5 11 4 3 12 11 20 11 15.5 21 15.5"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="arrow-up" title="Up Arrow">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 3 20 11 15.5 11 15.5 21 8.5 21 8.5 11 4 11"></polygon></svg>
+              </button>
+
+              <!-- Row 3: Down Arrow, 4-Point Star, 5-Point Star, 6-Point Star, Rect Callout, Oval Callout, Cloud Callout -->
+              <button class="shape-grid-btn popover-item" data-tool="arrow-down" title="Down Arrow">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="8.5 3 15.5 3 15.5 13 20 13 12 21 4 13 8.5 13"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="star-4" title="4-Point Star">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 3 14.5 9.5 21 12 14.5 14.5 12 21 9.5 14.5 3 12 9.5 9.5"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="star-5" title="5-Point Star">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 3 14.8 8.7 21 9.6 16.5 14 17.6 20.2 12 17.3 6.4 20.2 7.5 14 3 9.6 9.2 8.7"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="star-6" title="6-Point Star">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 2 15 7.5 21 8 17.5 12.5 19 18.5 13.5 16.5 12 22 10.5 16.5 5 18.5 6.5 12.5 3 8 9 7.5"></polygon></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="callout-round" title="Rounded Rectangular Callout">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"></path></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="callout-oval" title="Oval Callout">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 4c-5.5 0-10 3.1-10 7 0 2.2 1.4 4.1 3.7 5.4L4 20l4.6-2c1.1.4 2.2.6 3.4.6 5.5 0 10-3.1 10-7s-4.5-7-10-7z"></path></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="callout-cloud" title="Cloud Callout">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M19.5 14.5c1.4 0 2.5-1.1 2.5-2.5 0-1.2-.8-2.2-1.9-2.4.1-.4.1-.7.1-1.1 0-2.5-2-4.5-4.5-4.5-1.3 0-2.4.5-3.2 1.4-.7-.6-1.6-.9-2.5-.9-2.2 0-4 1.8-4 4 0 .3 0 .6.1.9C4.8 9.8 4 10.8 4 12c0 1.7 1.3 3 3 3h.5l-1.5 3.5 3.5-1.5h10z"></path></svg>
+              </button>
+
+              <!-- Row 4: Heart, Lightning Bolt -->
+              <button class="shape-grid-btn popover-item" data-tool="heart" title="Heart">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>
+              </button>
+              <button class="shape-grid-btn popover-item" data-tool="lightning" title="Lightning Bolt">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="13 2 4 13 11 13 9 22 20 9 13 9 13 2"></polygon></svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -623,53 +885,126 @@
 
         <div class="dock-divider"></div>
 
-        <!-- Colors Popover -->
+        <!-- MS Paint Style Horizontal Color Palette -->
         <div class="dock-section popover-container">
-          <button class="dock-btn popover-trigger" id="colorPopoverBtn" title="Color & Stroke Style">
-            <span class="color-swatch-preview" id="activeColorDot" style="background-color: #FF6B4A;"></span>
+          <button class="dock-btn popover-trigger ms-paint-trigger-btn" id="colorPopoverBtn" title="Colours (Click to change)">
+            <span class="rainbow-dock-circle"></span>
             <span class="chevron">▾</span>
           </button>
-          <div class="popover-menu glass-panel palette-popover" id="colorPopover">
-            <div class="popover-label">Color Palette</div>
-            <div class="color-grid" id="colorGrid">
-              <button class="color-choice active" data-color="#FF6B4A" style="--c: #FF6B4A;"></button>
-              <button class="color-choice" data-color="#F43F5E" style="--c: #F43F5E;"></button>
-              <button class="color-choice" data-color="#8B5CF6" style="--c: #8B5CF6;"></button>
-              <button class="color-choice" data-color="#38BDF8" style="--c: #38BDF8;"></button>
-              <button class="color-choice" data-color="#34D399" style="--c: #34D399;"></button>
-              <button class="color-choice" data-color="#FBBF24" style="--c: #FBBF24;"></button>
-              <button class="color-choice" data-color="#FFFFFF" style="--c: #FFFFFF;"></button>
-              <button class="color-choice" data-color="#64748B" style="--c: #64748B;"></button>
+
+          <div class="popover-menu glass-panel ms-paint-ribbon-popover" id="colorPopover">
+            
+            <div class="ms-paint-main-row">
+              <!-- Left: Dual Color Selectors (Color 1 / Color 2) -->
+              <div class="ms-paint-slots-column">
+                <button type="button" class="ms-slot-btn active" id="slotColor1" title="Color 1 (Foreground / Stroke)">
+                  <span class="ms-slot-circle" id="slotSwatch1" style="background-color: #ED1C24;"></span>
+                  <span class="ms-slot-badge">1</span>
+                </button>
+                <button type="button" class="ms-slot-btn" id="slotColor2" title="Color 2 (Background / Fill)">
+                  <span class="ms-slot-circle" id="slotSwatch2" style="background-color: #FFFFFF;"></span>
+                  <span class="ms-slot-badge">2</span>
+                </button>
+              </div>
+
+              <!-- Center: 2 Rows of 10 Swatches (20 Colors) -->
+              <div class="ms-paint-swatches-grid" id="colorGrid">
+                <!-- Row 1 -->
+                <button type="button" class="ms-color-dot" data-color="#000000" style="--c: #000000;" title="Black"></button>
+                <button type="button" class="ms-color-dot" data-color="#797979" style="--c: #797979;" title="Gray"></button>
+                <button type="button" class="ms-color-dot" data-color="#880015" style="--c: #880015;" title="Dark Red"></button>
+                <button type="button" class="ms-color-dot active" data-color="#ED1C24" style="--c: #ED1C24;" title="Red"></button>
+                <button type="button" class="ms-color-dot" data-color="#FF7F27" style="--c: #FF7F27;" title="Orange"></button>
+                <button type="button" class="ms-color-dot" data-color="#FFF200" style="--c: #FFF200;" title="Yellow"></button>
+                <button type="button" class="ms-color-dot" data-color="#22B14C" style="--c: #22B14C;" title="Green"></button>
+                <button type="button" class="ms-color-dot" data-color="#00A2E8" style="--c: #00A2E8;" title="Turquoise"></button>
+                <button type="button" class="ms-color-dot" data-color="#3F48CC" style="--c: #3F48CC;" title="Blue"></button>
+                <button type="button" class="ms-color-dot" data-color="#A349A4" style="--c: #A349A4;" title="Purple"></button>
+
+                <!-- Row 2 -->
+                <button type="button" class="ms-color-dot" data-color="#FFFFFF" style="--c: #FFFFFF;" title="White"></button>
+                <button type="button" class="ms-color-dot" data-color="#C3C3C3" style="--c: #C3C3C3;" title="Light Gray"></button>
+                <button type="button" class="ms-color-dot" data-color="#B97A57" style="--c: #B97A57;" title="Brown"></button>
+                <button type="button" class="ms-color-dot" data-color="#FFAEC9" style="--c: #FFAEC9;" title="Pink"></button>
+                <button type="button" class="ms-color-dot" data-color="#FFC90E" style="--c: #FFC90E;" title="Gold"></button>
+                <button type="button" class="ms-color-dot" data-color="#EFE4B0" style="--c: #EFE4B0;" title="Cream"></button>
+                <button type="button" class="ms-color-dot" data-color="#B5E61D" style="--c: #B5E61D;" title="Lime"></button>
+                <button type="button" class="ms-color-dot" data-color="#99D9EA" style="--c: #99D9EA;" title="Pale Turquoise"></button>
+                <button type="button" class="ms-color-dot" data-color="#7092BE" style="--c: #7092BE;" title="Steel Blue"></button>
+                <button type="button" class="ms-color-dot" data-color="#C8BFE7" style="--c: #C8BFE7;" title="Lavender"></button>
+              </div>
+
+              <!-- Right: Custom Rainbow Color Wheel Button -->
+              <div class="ms-paint-custom-wrapper">
+                <label class="ms-rainbow-btn" id="btnCustomColor" for="customColorInput" title="Edit custom colour...">
+                  <span class="rainbow-wheel"></span>
+                  <span class="rainbow-plus">+</span>
+                  <input type="color" id="customColorInput" class="ms-hidden-color-input" value="#ED1C24" />
+                </label>
+              </div>
             </div>
-            <div class="popover-label">Stroke Width</div>
-            <div class="stroke-width-selector">
-              <button class="width-btn active" data-width="3">Fine (3px)</button>
-              <button class="width-btn" data-width="6">Medium (6px)</button>
-              <button class="width-btn" data-width="12">Thick (12px)</button>
-            </div>
+
           </div>
         </div>
 
         <!-- Reactions Popover -->
-        <div class="dock-section popover-container">
+        <div class="dock-section popover-container" id="reactionPopoverContainer">
           <button class="dock-btn popover-trigger" id="reactionPopoverBtn" title="Emoji Reactions & Chat (/)">
-            <span class="reaction-trigger-emoji">🔥</span>
+            <span class="reaction-trigger-emoji" id="reactionTriggerEmoji">🔥</span>
             <span class="chevron">▾</span>
           </button>
-          <div class="popover-menu glass-panel reaction-popover" id="reactionPopover">
-            <div class="popover-label">Quick Reactions</div>
-            <div class="reaction-grid">
-              <button class="reaction-item" data-emoji="🔥">🔥</button>
-              <button class="reaction-item" data-emoji="❤️">❤️</button>
-              <button class="reaction-item" data-emoji="🎉">🎉</button>
-              <button class="reaction-item" data-emoji="🚀">🚀</button>
-              <button class="reaction-item" data-emoji="👍">👍</button>
+          <div class="popover-menu glass-panel reaction-bubble-popover" id="reactionPopover">
+            <div class="reaction-bubble-header">
+              <div class="reaction-header-title">
+                <span>✨ Reactions & Emojis</span>
+                <span class="reaction-count-badge" id="emojiCountBadge">200+</span>
+              </div>
+              <div class="reaction-search-wrap">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="reactionSearchInput" class="reaction-search-input" placeholder="Search emojis..." autocomplete="off" />
+                <button type="button" class="reaction-search-clear" id="reactionSearchClear" title="Clear">✕</button>
+              </div>
             </div>
-            <div class="popover-divider"></div>
-            <button class="popover-chat-trigger" id="startCursorChatBtn">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-              <span>Live Cursor Chat</span><kbd>/</kbd>
-            </button>
+
+            <div class="reaction-quick-strip">
+              <span class="reaction-strip-label">Quick:</span>
+              <div class="reaction-quick-pills" id="reactionQuickPills">
+                <button class="reaction-item quick-pill" data-emoji="🔥" title="Fire">🔥</button>
+                <button class="reaction-item quick-pill" data-emoji="❤️" title="Love">❤️</button>
+                <button class="reaction-item quick-pill" data-emoji="🎉" title="Tada">🎉</button>
+                <button class="reaction-item quick-pill" data-emoji="🚀" title="Rocket">🚀</button>
+                <button class="reaction-item quick-pill" data-emoji="👍" title="Thumbs Up">👍</button>
+                <button class="reaction-item quick-pill" data-emoji="😂" title="Laugh">😂</button>
+                <button class="reaction-item quick-pill" data-emoji="🥳" title="Party">🥳</button>
+                <button class="reaction-item quick-pill" data-emoji="💡" title="Idea">💡</button>
+                <button class="reaction-item quick-pill" data-emoji="💯" title="100">💯</button>
+                <button class="reaction-item quick-pill" data-emoji="✨" title="Sparkle">✨</button>
+                <button class="reaction-item quick-pill" data-emoji="🤯" title="Mindblown">🤯</button>
+                <button class="reaction-item quick-pill" data-emoji="🙌" title="Praise">🙌</button>
+              </div>
+            </div>
+
+            <div class="reaction-category-tabs" id="reactionCategoryTabs">
+              <button class="reaction-cat-tab active" data-category="all" title="All Emojis">🌟 All</button>
+              <button class="reaction-cat-tab" data-category="smileys" title="Smileys">😀 Smiles</button>
+              <button class="reaction-cat-tab" data-category="people_gestures" title="Gestures">👋 Hands</button>
+              <button class="reaction-cat-tab" data-category="animals_nature" title="Animals & Nature">🐱 Nature</button>
+              <button class="reaction-cat-tab" data-category="food_drink" title="Food & Drink">🍕 Food</button>
+              <button class="reaction-cat-tab" data-category="objects_activities" title="Objects & Sports">🎯 Objects</button>
+              <button class="reaction-cat-tab" data-category="symbols_hearts" title="Hearts & Symbols">💖 Symbols</button>
+            </div>
+
+            <div class="reaction-scroll-area" id="reactionScrollArea">
+              <!-- Dynamically populated with all emojis -->
+            </div>
+
+            <div class="reaction-bubble-footer">
+              <button class="popover-chat-trigger" id="startCursorChatBtn">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span>Live Cursor Chat</span><kbd>/</kbd>
+              </button>
+            </div>
+            <div class="reaction-bubble-tail"></div>
           </div>
         </div>
 
@@ -792,6 +1127,7 @@
             <div class="shortcut-row"><span class="label">Smooth Pen</span><kbd>P</kbd></div>
             <div class="shortcut-row"><span class="label">Highlighter</span><kbd>H</kbd></div>
             <div class="shortcut-row"><span class="label">Eraser</span><kbd>E</kbd></div>
+            <div class="shortcut-row"><span class="label">Fill with Color / Bucket</span><kbd>B</kbd></div>
             <div class="shortcut-row"><span class="label">Sticky Note</span><kbd>S</kbd></div>
             <div class="shortcut-row"><span class="label">Text Box</span><kbd>T</kbd></div>
             <div class="shortcut-row"><span class="label">Code Snippet</span><kbd>C</kbd></div>
@@ -801,6 +1137,7 @@
           <div class="shortcut-group">
             <h4>Social & Canvas</h4>
             <div class="shortcut-row"><span class="label">Live Cursor Chat</span><kbd>/</kbd></div>
+            <div class="shortcut-row"><span class="label">Toggle Cursors</span><kbd>Alt + C</kbd></div>
             <div class="shortcut-row"><span class="label">Attention Radar Ping</span><kbd>Double Click</kbd></div>
             <div class="shortcut-row"><span class="label">Follow Teammate</span><kbd>Click Avatar</kbd></div>
             <div class="shortcut-row"><span class="label">Undo / Redo</span><kbd>Ctrl + Z / Y</kbd></div>

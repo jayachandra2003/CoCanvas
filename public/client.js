@@ -285,7 +285,11 @@
     currentScreen: 'landing', // 'landing' or 'whiteboard'
     activeTool: 'pen',
     activeColor: '#FF6B4A',
+    activeFillColor: '#FDE047',
+    activeColorSlot: 'color1', // 'color1' (outline) | 'color2' (fill)
+    activeFillStyle: 'none', // 'none' | 'semi' | 'solid'
     activeWidth: 3,
+    activeEraserSize: 20,
     gridMode: 'dots',
     panX: 0,
     panY: 0,
@@ -312,7 +316,8 @@
     cameraAnimation: null,
     isChatOpen: false,
     unreadChatCount: 0,
-    roomMode: 'friendly' // 'friendly' (all draw) | 'host' (presentation mode, only hosts draw)
+    roomMode: 'friendly', // 'friendly' (all draw) | 'host' (presentation mode, only hosts draw)
+    showRemoteCursors: localStorage.getItem('cocanvas_show_remote_cursors') !== 'false'
   };
 
   // Sync avatar index
@@ -330,6 +335,7 @@
   const landingThemeLabel = document.getElementById('landingThemeLabel');
   const canvasThemeToggleBtn = document.getElementById('canvasThemeToggleBtn');
   const canvasThemeIcon = document.getElementById('canvasThemeIcon');
+  const toggleCursorsBtn = document.getElementById('toggleCursorsBtn');
 
   // Landing Elements
   const landingNameInput = document.getElementById('landingNameInput');
@@ -699,7 +705,7 @@
     dot.addEventListener('click', () => {
       state.user.color = dot.dataset.color;
       state.activeColor = dot.dataset.color;
-      activeColorDot.style.backgroundColor = state.activeColor;
+      if (activeColorDot) activeColorDot.style.backgroundColor = state.activeColor;
       sound.playClick();
       updateLandingUI();
     });
@@ -878,7 +884,7 @@
     }
   }
 
-  function simplifyPoints(points, epsilon = 1.5) {
+  function simplifyPoints(points, epsilon = 0.5) {
     if (points.length <= 2) return points;
     let maxDist = 0;
     let index = 0;
@@ -901,8 +907,27 @@
     return [first, last];
   }
 
+  const ALL_BRUSH_TOOLS = [
+    'pen', 'brush', 'calligraphy-brush', 'calligraphy-pen', 'airbrush',
+    'oil-brush', 'crayon', 'marker', 'highlighter', 'pencil', 'watercolor'
+  ];
+
+  const ALL_SHAPE_TOOLS = [
+    'line', 'curve', 'circle', 'rect', 'rounded-rect', 'polygon', 'triangle',
+    'right-triangle', 'diamond', 'pentagon', 'hexagon', 'arrow-right', 'arrow-left',
+    'arrow-up', 'arrow-down', 'star-4', 'star-5', 'star-6', 'callout-round',
+    'callout-oval', 'callout-cloud', 'heart', 'lightning', 'arrow'
+  ];
+
+  const ALL_2D_SHAPES = [
+    'rect', 'rounded-rect', 'circle', 'polygon', 'triangle',
+    'right-triangle', 'diamond', 'pentagon', 'hexagon', 'arrow-right', 'arrow-left',
+    'arrow-up', 'arrow-down', 'star-4', 'star-5', 'star-6', 'callout-round',
+    'callout-oval', 'callout-cloud', 'heart', 'lightning'
+  ];
+
   function getElementBounds(el) {
-    if (el.type === 'pen' || el.type === 'highlighter') {
+    if (ALL_BRUSH_TOOLS.includes(el.type)) {
       if (!el.points || el.points.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       el.points.forEach((p) => {
@@ -911,16 +936,15 @@
         if (p.y < minY) minY = p.y;
         if (p.y > maxY) maxY = p.y;
       });
-      const pad = (el.width || 3) * 2;
+      const pad = (el.width || 3) * 6;
       return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
-    } else if (el.type === 'rect' || el.type === 'circle' || el.type === 'image' || el.type === 'sticky' || el.type === 'text') {
+    } else if (el.type === 'line' || el.type === 'arrow' || el.type === 'curve') {
+      return { minX: Math.min(el.x1, el.x2) - 10, minY: Math.min(el.y1, el.y2) - 10, maxX: Math.max(el.x1, el.x2) + 10, maxY: Math.max(el.y1, el.y2) + 10 };
+    } else {
       const w = el.w || 200;
       const h = el.h || 160;
       return { minX: Math.min(el.x, el.x + w), minY: Math.min(el.y, el.y + h), maxX: Math.max(el.x, el.x + w), maxY: Math.max(el.y, el.y + h) };
-    } else if (el.type === 'line' || el.type === 'arrow') {
-      return { minX: Math.min(el.x1, el.x2) - 10, minY: Math.min(el.y1, el.y2) - 10, maxX: Math.max(el.x1, el.x2) + 10, maxY: Math.max(el.y1, el.y2) + 10 };
     }
-    return { minX: -Infinity, minY: -Infinity, maxX: Infinity, maxY: Infinity };
   }
 
   function isElementInViewport(bounds) {
@@ -931,36 +955,292 @@
     return !(bounds.maxX < vLeft || bounds.minX > vRight || bounds.maxY < vTop || bounds.minY > vBottom);
   }
 
-  function drawElement(ctx, el) {
-    ctx.save();
-    ctx.strokeStyle = el.color || '#FF6B4A';
-    ctx.fillStyle = el.color || '#FF6B4A';
-    ctx.lineWidth = (el.width || 3) * state.zoom;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    switch (el.type) {
-      case 'pen': {
-        if (!el.points || el.points.length < 2) break;
-        ctx.beginPath();
-        const p0 = worldToScreen(el.points[0].x, el.points[0].y);
-        ctx.moveTo(p0.x, p0.y);
-        for (let i = 1; i < el.points.length - 1; i++) {
-          const p1 = worldToScreen(el.points[i].x, el.points[i].y);
-          const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
-          ctx.quadraticCurveTo(p1.x, p1.y, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
-        }
-        const lastP = worldToScreen(el.points[el.points.length - 1].x, el.points[el.points.length - 1].y);
-        ctx.lineTo(lastP.x, lastP.y);
-        ctx.stroke();
+  function drawShape2DPath(ctx, type, sx, sy, sw, sh) {
+    ctx.beginPath();
+    switch (type) {
+      case 'rect': {
+        ctx.rect(sx, sy, sw, sh);
         break;
       }
+      case 'rounded-rect': {
+        const r = Math.min(12 * state.zoom, Math.abs(sw) / 4, Math.abs(sh) / 4);
+        if (ctx.roundRect) ctx.roundRect(sx, sy, sw, sh, r);
+        else ctx.rect(sx, sy, sw, sh);
+        break;
+      }
+      case 'circle': {
+        const cx = sx + sw / 2;
+        const cy = sy + sh / 2;
+        const rx = Math.max(1, Math.abs(sw) / 2);
+        const ry = Math.max(1, Math.abs(sh) / 2);
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        break;
+      }
+      case 'polygon': {
+        const slant = sw * 0.25;
+        ctx.moveTo(sx + slant, sy);
+        ctx.lineTo(sx + sw, sy);
+        ctx.lineTo(sx + sw - slant, sy + sh);
+        ctx.lineTo(sx, sy + sh);
+        ctx.closePath();
+        break;
+      }
+      case 'triangle': {
+        ctx.moveTo(sx + sw / 2, sy);
+        ctx.lineTo(sx + sw, sy + sh);
+        ctx.lineTo(sx, sy + sh);
+        ctx.closePath();
+        break;
+      }
+      case 'right-triangle': {
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + sw, sy + sh);
+        ctx.lineTo(sx, sy + sh);
+        ctx.closePath();
+        break;
+      }
+      case 'diamond': {
+        ctx.moveTo(sx + sw / 2, sy);
+        ctx.lineTo(sx + sw, sy + sh / 2);
+        ctx.lineTo(sx + sw / 2, sy + sh);
+        ctx.lineTo(sx, sy + sh / 2);
+        ctx.closePath();
+        break;
+      }
+      case 'pentagon': {
+        ctx.moveTo(sx + sw * 0.5, sy);
+        ctx.lineTo(sx + sw, sy + sh * 0.38);
+        ctx.lineTo(sx + sw * 0.81, sy + sh);
+        ctx.lineTo(sx + sw * 0.19, sy + sh);
+        ctx.lineTo(sx, sy + sh * 0.38);
+        ctx.closePath();
+        break;
+      }
+      case 'hexagon': {
+        ctx.moveTo(sx + sw * 0.5, sy);
+        ctx.lineTo(sx + sw, sy + sh * 0.25);
+        ctx.lineTo(sx + sw, sy + sh * 0.75);
+        ctx.lineTo(sx + sw * 0.5, sy + sh);
+        ctx.lineTo(sx, sy + sh * 0.75);
+        ctx.lineTo(sx, sy + sh * 0.25);
+        ctx.closePath();
+        break;
+      }
+      case 'arrow-right': {
+        ctx.moveTo(sx, sy + sh * 0.3);
+        ctx.lineTo(sx + sw * 0.6, sy + sh * 0.3);
+        ctx.lineTo(sx + sw * 0.6, sy);
+        ctx.lineTo(sx + sw, sy + sh * 0.5);
+        ctx.lineTo(sx + sw * 0.6, sy + sh);
+        ctx.lineTo(sx + sw * 0.6, sy + sh * 0.7);
+        ctx.lineTo(sx, sy + sh * 0.7);
+        ctx.closePath();
+        break;
+      }
+      case 'arrow-left': {
+        ctx.moveTo(sx + sw, sy + sh * 0.3);
+        ctx.lineTo(sx + sw * 0.4, sy + sh * 0.3);
+        ctx.lineTo(sx + sw * 0.4, sy);
+        ctx.lineTo(sx, sy + sh * 0.5);
+        ctx.lineTo(sx + sw * 0.4, sy + sh);
+        ctx.lineTo(sx + sw * 0.4, sy + sh * 0.7);
+        ctx.lineTo(sx + sw, sy + sh * 0.7);
+        ctx.closePath();
+        break;
+      }
+      case 'arrow-up': {
+        ctx.moveTo(sx + sw * 0.5, sy);
+        ctx.lineTo(sx + sw, sy + sh * 0.4);
+        ctx.lineTo(sx + sw * 0.7, sy + sh * 0.4);
+        ctx.lineTo(sx + sw * 0.7, sy + sh);
+        ctx.lineTo(sx + sw * 0.3, sy + sh);
+        ctx.lineTo(sx + sw * 0.3, sy + sh * 0.4);
+        ctx.lineTo(sx, sy + sh * 0.4);
+        ctx.closePath();
+        break;
+      }
+      case 'arrow-down': {
+        ctx.moveTo(sx + sw * 0.3, sy);
+        ctx.lineTo(sx + sw * 0.7, sy);
+        ctx.lineTo(sx + sw * 0.7, sy + sh * 0.6);
+        ctx.lineTo(sx + sw, sy + sh * 0.6);
+        ctx.lineTo(sx + sw * 0.5, sy + sh);
+        ctx.lineTo(sx, sy + sh * 0.6);
+        ctx.lineTo(sx + sw * 0.3, sy + sh * 0.6);
+        ctx.closePath();
+        break;
+      }
+      case 'star-4': {
+        const cx = sx + sw / 2, cy = sy + sh / 2;
+        const rx = Math.abs(sw) / 2, ry = Math.abs(sh) / 2;
+        for (let i = 0; i < 8; i++) {
+          const a = (i * Math.PI) / 4 - Math.PI / 2;
+          const rFactor = i % 2 === 0 ? 1 : 0.36;
+          const px = cx + rx * rFactor * Math.cos(a);
+          const py = cy + ry * rFactor * Math.sin(a);
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        break;
+      }
+      case 'star-5': {
+        const cx = sx + sw / 2, cy = sy + sh / 2;
+        const rx = Math.abs(sw) / 2, ry = Math.abs(sh) / 2;
+        for (let i = 0; i < 10; i++) {
+          const a = (i * Math.PI) / 5 - Math.PI / 2;
+          const rFactor = i % 2 === 0 ? 1 : 0.42;
+          const px = cx + rx * rFactor * Math.cos(a);
+          const py = cy + ry * rFactor * Math.sin(a);
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        break;
+      }
+      case 'star-6': {
+        const cx = sx + sw / 2, cy = sy + sh / 2;
+        const rx = Math.abs(sw) / 2, ry = Math.abs(sh) / 2;
+        for (let i = 0; i < 12; i++) {
+          const a = (i * Math.PI) / 6 - Math.PI / 2;
+          const rFactor = i % 2 === 0 ? 1 : 0.52;
+          const px = cx + rx * rFactor * Math.cos(a);
+          const py = cy + ry * rFactor * Math.sin(a);
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        break;
+      }
+      case 'callout-round': {
+        const bubbleH = sh * 0.78;
+        const r = Math.min(10 * state.zoom, Math.abs(sw) / 6, Math.abs(bubbleH) / 4);
+        ctx.moveTo(sx + r, sy);
+        ctx.lineTo(sx + sw - r, sy);
+        ctx.arcTo(sx + sw, sy, sx + sw, sy + r, r);
+        ctx.lineTo(sx + sw, sy + bubbleH - r);
+        ctx.arcTo(sx + sw, sy + bubbleH, sx + sw - r, sy + bubbleH, r);
+        ctx.lineTo(sx + sw * 0.5, sy + bubbleH);
+        ctx.lineTo(sx + sw * 0.18, sy + sh);
+        ctx.lineTo(sx + sw * 0.32, sy + bubbleH);
+        ctx.lineTo(sx + r, sy + bubbleH);
+        ctx.arcTo(sx, sy + bubbleH, sx, sy + bubbleH - r, r);
+        ctx.lineTo(sx, sy + r);
+        ctx.arcTo(sx, sy, sx + r, sy, r);
+        ctx.closePath();
+        break;
+      }
+      case 'callout-oval': {
+        const cx = sx + sw / 2;
+        const cy = sy + sh * 0.42;
+        const rx = Math.max(1, Math.abs(sw) / 2);
+        const ry = Math.max(1, Math.abs(sh) * 0.42);
+        ctx.moveTo(cx, cy - ry);
+        ctx.bezierCurveTo(cx + rx * 0.552, cy - ry, cx + rx, cy - ry * 0.552, cx + rx, cy);
+        ctx.bezierCurveTo(cx + rx, cy + ry * 0.552, cx + rx * 0.552, cy + ry, cx, cy + ry);
+        ctx.lineTo(sx + sw * 0.18, sy + sh);
+        ctx.lineTo(cx - rx * 0.35, cy + ry * 0.93);
+        ctx.bezierCurveTo(cx - rx * 0.65, cy + ry * 0.8, cx - rx, cy + ry * 0.552, cx - rx, cy);
+        ctx.bezierCurveTo(cx - rx, cy - ry * 0.552, cx - rx * 0.552, cy - ry, cx, cy - ry);
+        ctx.closePath();
+        break;
+      }
+      case 'callout-cloud': {
+        const w = sw, h = sh * 0.78;
+        ctx.moveTo(sx + w * 0.2, sy + h * 0.7);
+        ctx.bezierCurveTo(sx, sy + h * 0.7, sx, sy + h * 0.3, sx + w * 0.2, sy + h * 0.25);
+        ctx.bezierCurveTo(sx + w * 0.1, sy, sx + w * 0.5, sy, sx + w * 0.5, sy + h * 0.15);
+        ctx.bezierCurveTo(sx + w * 0.6, sy, sx + w * 0.9, sy, sx + w * 0.85, sy + h * 0.3);
+        ctx.bezierCurveTo(sx + w, sy + h * 0.35, sx + w, sy + h * 0.7, sx + w * 0.8, sy + h * 0.75);
+        ctx.bezierCurveTo(sx + w * 0.8, sy + h, sx + w * 0.3, sy + h, sx + w * 0.2, sy + h * 0.7);
+        ctx.closePath();
+        ctx.moveTo(sx + w * 0.22 + w * 0.05, sy + h + (sh - h) * 0.4);
+        ctx.arc(sx + w * 0.22, sy + h + (sh - h) * 0.4, Math.max(2, w * 0.05), 0, Math.PI * 2);
+        ctx.moveTo(sx + w * 0.12 + w * 0.03, sy + sh - (sh - h) * 0.15);
+        ctx.arc(sx + w * 0.12, sy + sh - (sh - h) * 0.15, Math.max(1.5, w * 0.03), 0, Math.PI * 2);
+        break;
+      }
+      case 'heart': {
+        const topY = sy + sh * 0.28;
+        ctx.moveTo(sx + sw / 2, sy + sh);
+        ctx.bezierCurveTo(sx + sw * 0.1, sy + sh * 0.7, sx, topY + sh * 0.2, sx, topY);
+        ctx.bezierCurveTo(sx, sy, sx + sw / 2, sy, sx + sw / 2, topY);
+        ctx.bezierCurveTo(sx + sw / 2, sy, sx + sw, sy, sx + sw, topY);
+        ctx.bezierCurveTo(sx + sw, topY + sh * 0.2, sx + sw * 0.9, sy + sh * 0.7, sx + sw / 2, sy + sh);
+        ctx.closePath();
+        break;
+      }
+      case 'lightning': {
+        ctx.moveTo(sx + sw * 0.55, sy);
+        ctx.lineTo(sx + sw * 0.15, sy + sh * 0.52);
+        ctx.lineTo(sx + sw * 0.48, sy + sh * 0.52);
+        ctx.lineTo(sx + sw * 0.32, sy + sh);
+        ctx.lineTo(sx + sw * 0.85, sy + sh * 0.42);
+        ctx.lineTo(sx + sw * 0.52, sy + sh * 0.42);
+        ctx.closePath();
+        break;
+      }
+      default: {
+        ctx.rect(sx, sy, sw, sh);
+        break;
+      }
+    }
+  }
 
-      case 'highlighter': {
-        if (!el.points || el.points.length < 2) break;
+  function drawBrushStroke(ctx, el) {
+    if (!el.points || el.points.length === 0) return;
+    const brushType = el.type || 'brush';
+    const color = el.color || '#FF6B4A';
+    const baseWidth = Math.max(1, (el.width || 3) * state.zoom);
+
+    if (el.points.length === 1) {
+      const p = worldToScreen(el.points[0].x, el.points[0].y);
+      ctx.save();
+      ctx.fillStyle = color;
+      if (brushType === 'airbrush') {
+        const radius = Math.max(5, baseWidth * 3.6);
+        for (let j = 0; j < 24; j++) {
+          const r = Math.sqrt(((Math.sin(j * 17.3) + 1) / 2)) * radius;
+          const theta = ((Math.cos(j * 29.7) + 1) / 2) * Math.PI * 2;
+          ctx.fillRect(p.x + r * Math.cos(theta), p.y + r * Math.sin(theta), 1.5, 1.5);
+        }
+      } else if (brushType === 'calligraphy-brush') {
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, Math.max(3, baseWidth * 2.8) / 2, Math.max(1, baseWidth * 0.35) / 2, Math.PI / 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (brushType === 'calligraphy-pen') {
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, Math.max(2.5, baseWidth * 2.2) / 2, Math.max(0.8, baseWidth * 0.2) / 2, -Math.PI / 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (brushType === 'watercolor') {
+        const rad = Math.max(4, baseWidth * 1.5);
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rad);
+        grad.addColorStop(0, color);
+        grad.addColorStop(0.7, color);
+        grad.addColorStop(1, 'transparent');
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, baseWidth / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
+
+    switch (brushType) {
+      case 'pen':
+      case 'brush': {
+        // 1. MS Paint Standard Round Brush (Smooth, 100% opaque, round caps)
         ctx.save();
-        ctx.globalAlpha = 0.35;
-        ctx.lineWidth = (el.width || 12) * 2.5 * state.zoom;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = brushType === 'pen' ? baseWidth : baseWidth * 1.35;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         ctx.beginPath();
         const p0 = worldToScreen(el.points[0].x, el.points[0].y);
         ctx.moveTo(p0.x, p0.y);
@@ -976,72 +1256,450 @@
         break;
       }
 
-      case 'rect': {
-        const s = worldToScreen(el.x, el.y);
-        const w = el.w * state.zoom;
-        const h = el.h * state.zoom;
-        ctx.beginPath();
-        const r = Math.min(8 * state.zoom, Math.abs(w) / 4, Math.abs(h) / 4);
-        if (ctx.roundRect) ctx.roundRect(s.x, s.y, w, h, r);
-        else ctx.rect(s.x, s.y, w, h);
-        ctx.stroke();
+      case 'calligraphy-brush': {
+        // 2. MS Paint Calligraphy 1 (Authentic 45° Chisel Ribbon with thick/thin dynamics)
+        ctx.save();
+        ctx.fillStyle = color;
+        const chiselLen = Math.max(3, baseWidth * 3.2);
+        const chiselThickness = Math.max(1, baseWidth * 0.35);
+        const angle = Math.PI / 4; // 45 deg
+
+        for (let i = 0; i < el.points.length - 1; i++) {
+          const p1 = worldToScreen(el.points[i].x, el.points[i].y);
+          const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
+          const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          const steps = Math.max(1, Math.ceil(dist / 1.2));
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const x = p1.x + (p2.x - p1.x) * t;
+            const y = p1.y + (p2.y - p1.y) * t;
+            ctx.beginPath();
+            ctx.ellipse(x, y, chiselLen / 2, chiselThickness / 2, angle, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
         break;
       }
 
-      case 'circle': {
-        const s = worldToScreen(el.x, el.y);
-        const rx = Math.abs(el.w * state.zoom) / 2;
-        const ry = Math.abs(el.h * state.zoom) / 2;
-        const cx = s.x + (el.w * state.zoom) / 2;
-        const cy = s.y + (el.h * state.zoom) / 2;
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
-        ctx.stroke();
+      case 'calligraphy-pen': {
+        // 3. MS Paint Calligraphy 2 (Authentic -45° Sharp Chisel with extreme contrast)
+        ctx.save();
+        ctx.fillStyle = color;
+        const chiselLen = Math.max(2.5, baseWidth * 2.6);
+        const chiselThickness = Math.max(0.7, baseWidth * 0.18);
+        const angle = -Math.PI / 4; // -45 deg
+
+        for (let i = 0; i < el.points.length - 1; i++) {
+          const p1 = worldToScreen(el.points[i].x, el.points[i].y);
+          const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
+          const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          const steps = Math.max(1, Math.ceil(dist / 1.2));
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const x = p1.x + (p2.x - p1.x) * t;
+            const y = p1.y + (p2.y - p1.y) * t;
+            ctx.beginPath();
+            ctx.ellipse(x, y, chiselLen / 2, chiselThickness / 2, angle, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
         break;
       }
 
-      case 'line': {
-        const s1 = worldToScreen(el.x1, el.y1);
-        const s2 = worldToScreen(el.x2, el.y2);
-        ctx.beginPath();
-        ctx.moveTo(s1.x, s1.y);
-        ctx.lineTo(s2.x, s2.y);
-        ctx.stroke();
+      case 'airbrush': {
+        // 4. MS Paint Airbrush (Iconic spray can with crisp scattered pixel droplets)
+        ctx.save();
+        ctx.fillStyle = color;
+        const radius = Math.max(6, baseWidth * 4.0);
+        const stepDist = 2.5;
+
+        for (let i = 0; i < el.points.length - 1; i++) {
+          const p1 = worldToScreen(el.points[i].x, el.points[i].y);
+          const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
+          const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          const steps = Math.max(1, Math.ceil(dist / stepDist));
+
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const cx = p1.x + (p2.x - p1.x) * t;
+            const cy = p1.y + (p2.y - p1.y) * t;
+            const seed = (i * 163 + s * 41);
+            const particleCount = Math.max(10, Math.round(14 + baseWidth * 1.5));
+
+            for (let j = 0; j < particleCount; j++) {
+              const rRand = (Math.sin(seed + j * 19.7) + 1) / 2;
+              const theta = ((Math.cos(seed + j * 31.3) + 1) / 2) * Math.PI * 2;
+              const r = Math.pow(rRand, 1.8) * radius;
+              const dotX = cx + r * Math.cos(theta);
+              const dotY = cy + r * Math.sin(theta);
+              const dotSize = (j % 4 === 0) ? 1.8 : 1.2;
+
+              ctx.fillRect(dotX, dotY, dotSize, dotSize);
+            }
+          }
+        }
+        ctx.restore();
         break;
       }
 
-      case 'arrow': {
-        const s1 = worldToScreen(el.x1, el.y1);
-        const s2 = worldToScreen(el.x2, el.y2);
+      case 'oil-brush': {
+        // 5. MS Paint Oil Paint (Authentic bristle streaks + dry-brush canvas tooth)
+        ctx.save();
+        const bristleCount = 7;
+        const spread = Math.max(4, baseWidth * 1.6);
+        const p0 = worldToScreen(el.points[0].x, el.points[0].y);
+
+        // Core stroke with textured bristle tracks
+        for (let b = 0; b < bristleCount; b++) {
+          const offset = ((b / (bristleCount - 1)) - 0.5) * spread;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = Math.max(1, baseWidth * 0.42);
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.globalAlpha = (b === 3 || b === 2 || b === 4) ? 0.75 : 0.45;
+
+          ctx.beginPath();
+          ctx.moveTo(p0.x + offset, p0.y + offset * 0.4);
+          for (let i = 1; i < el.points.length - 1; i++) {
+            const p1 = worldToScreen(el.points[i].x, el.points[i].y);
+            const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
+            ctx.quadraticCurveTo(p1.x + offset, p1.y + offset * 0.4, (p1.x + p2.x) / 2 + offset, (p1.y + p2.y) / 2 + offset * 0.4);
+          }
+          const lastP = worldToScreen(el.points[el.points.length - 1].x, el.points[el.points.length - 1].y);
+          ctx.lineTo(lastP.x + offset, lastP.y + offset * 0.4);
+          ctx.stroke();
+        }
+
+        // Oil sheen highlight bristle
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = Math.max(0.6, baseWidth * 0.18);
+        ctx.globalAlpha = 0.25;
         ctx.beginPath();
-        ctx.moveTo(s1.x, s1.y);
-        ctx.lineTo(s2.x, s2.y);
+        ctx.moveTo(p0.x - spread * 0.2, p0.y - spread * 0.1);
+        for (let i = 1; i < el.points.length - 1; i++) {
+          const p1 = worldToScreen(el.points[i].x, el.points[i].y);
+          const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
+          ctx.quadraticCurveTo(p1.x - spread * 0.2, p1.y - spread * 0.1, (p1.x + p2.x) / 2 - spread * 0.2, (p1.y + p2.y) / 2 - spread * 0.1);
+        }
+        const lastP = worldToScreen(el.points[el.points.length - 1].x, el.points[el.points.length - 1].y);
+        ctx.lineTo(lastP.x - spread * 0.2, lastP.y - spread * 0.1);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+
+      case 'crayon': {
+        // 6. MS Paint Crayon (Chalky wax texture with porous paper grain)
+        ctx.save();
+        ctx.fillStyle = color;
+        const crayonRadius = Math.max(2, baseWidth * 1.1);
+
+        for (let i = 0; i < el.points.length - 1; i++) {
+          const p1 = worldToScreen(el.points[i].x, el.points[i].y);
+          const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
+          const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          const steps = Math.max(1, Math.ceil(dist / 1.8));
+
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const cx = p1.x + (p2.x - p1.x) * t;
+            const cy = p1.y + (p2.y - p1.y) * t;
+            const seed = (i * 223 + s * 47);
+
+            for (let j = 0; j < 9; j++) {
+              const rRand = (Math.sin(seed + j * 13.7) + 1) / 2;
+              const theta = ((Math.cos(seed + j * 23.3) + 1) / 2) * Math.PI * 2;
+              const r = Math.sqrt(rRand) * crayonRadius;
+              const px = cx + r * Math.cos(theta);
+              const py = cy + r * Math.sin(theta);
+              const dotSize = 1.2 + ((Math.sin(seed * 3 + j * 7) + 1) / 2) * 1.4;
+
+              ctx.globalAlpha = 0.35 + ((Math.cos(seed * 2 + j * 5) + 1) / 2) * 0.55;
+              ctx.fillRect(px, py, dotSize, dotSize);
+            }
+          }
+        }
+        ctx.restore();
+        break;
+      }
+
+      case 'highlighter':
+      case 'marker': {
+        // 7. MS Paint Marker (Broad translucent felt chisel with flat ends and layering)
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = Math.max(5, (el.width || 12) * 2.4 * state.zoom);
+        ctx.lineCap = 'square';
+        ctx.lineJoin = 'miter';
+        ctx.beginPath();
+        const p0 = worldToScreen(el.points[0].x, el.points[0].y);
+        ctx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < el.points.length - 1; i++) {
+          const p1 = worldToScreen(el.points[i].x, el.points[i].y);
+          const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
+          ctx.quadraticCurveTo(p1.x, p1.y, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+        }
+        const lastP = worldToScreen(el.points[el.points.length - 1].x, el.points[el.points.length - 1].y);
+        ctx.lineTo(lastP.x, lastP.y);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+
+      case 'pencil': {
+        // 8. MS Paint Natural Pencil (Fine 2B pencil graphite line with texture grain)
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = Math.max(1, baseWidth * 0.75);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.globalAlpha = 0.85;
+
+        // Core graphite line
+        ctx.beginPath();
+        const p0 = worldToScreen(el.points[0].x, el.points[0].y);
+        ctx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < el.points.length - 1; i++) {
+          const p1 = worldToScreen(el.points[i].x, el.points[i].y);
+          const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
+          ctx.quadraticCurveTo(p1.x, p1.y, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+        }
+        const lastP = worldToScreen(el.points[el.points.length - 1].x, el.points[el.points.length - 1].y);
+        ctx.lineTo(lastP.x, lastP.y);
         ctx.stroke();
 
-        const angle = Math.atan2(s2.y - s1.y, s2.x - s1.x);
-        const headLen = Math.max(12, (el.width || 3) * 3.5 * state.zoom);
+        // Fine graphite grain jitter along the line
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.45;
+        for (let i = 0; i < el.points.length - 1; i++) {
+          const p1 = worldToScreen(el.points[i].x, el.points[i].y);
+          const p2 = worldToScreen(el.points[i + 1].x, el.points[i + 1].y);
+          const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          const steps = Math.max(1, Math.ceil(dist / 3));
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const seed = i * 71 + s * 13;
+            const jx = p1.x + (p2.x - p1.x) * t + ((Math.sin(seed) * 1.2));
+            const jy = p1.y + (p2.y - p1.y) * t + ((Math.cos(seed) * 1.2));
+            ctx.fillRect(jx, jy, 1, 1);
+          }
+        }
+        ctx.restore();
+        break;
+      }
+
+      case 'watercolor': {
+        // 9. MS Paint Watercolour Brush (Authentic Multi-Bristle Flat Wash with Wet-Bleed Striations & Pigment Runout Fade)
+        ctx.save();
+        const pts = el.points.map(p => worldToScreen(p.x, p.y));
+        const numPts = pts.length;
+        if (numPts < 2) {
+          ctx.restore();
+          break;
+        }
+
+        // Precompute cumulative stroke distances and normal vectors
+        const dists = [0];
+        let totalLen = 0;
+        for (let i = 0; i < numPts - 1; i++) {
+          const d = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+          totalLen += d;
+          dists.push(totalLen);
+        }
+
+        const normals = [];
+        for (let i = 0; i < numPts; i++) {
+          let dx = 0, dy = 0;
+          if (i === 0) {
+            dx = pts[1].x - pts[0].x;
+            dy = pts[1].y - pts[0].y;
+          } else if (i === numPts - 1) {
+            dx = pts[numPts - 1].x - pts[numPts - 2].x;
+            dy = pts[numPts - 1].y - pts[numPts - 2].y;
+          } else {
+            dx = pts[i + 1].x - pts[i - 1].x;
+            dy = pts[i + 1].y - pts[i - 1].y;
+          }
+          const len = Math.hypot(dx, dy) || 1;
+          // Perpendicular normal vector
+          normals.push({ nx: -dy / len, ny: dx / len });
+        }
+
+        const ribbonWidth = Math.max(7, baseWidth * 2.5);
+        ctx.strokeStyle = color;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // A. Soft underwash diffusion bleed (gives the organic watercolor feathering)
+        ctx.lineWidth = ribbonWidth * 1.25;
+        ctx.globalAlpha = 0.08;
         ctx.beginPath();
-        ctx.moveTo(s2.x, s2.y);
-        ctx.lineTo(s2.x - headLen * Math.cos(angle - Math.PI / 6), s2.y - headLen * Math.sin(angle - Math.PI / 6));
-        ctx.lineTo(s2.x - headLen * Math.cos(angle + Math.PI / 6), s2.y - headLen * Math.sin(angle + Math.PI / 6));
-        ctx.closePath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < numPts - 1; i++) {
+          const p1 = pts[i];
+          const p2 = pts[i + 1];
+          ctx.quadraticCurveTo(p1.x, p1.y, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+        }
+        ctx.lineTo(pts[numPts - 1].x, pts[numPts - 1].y);
+        ctx.stroke();
+
+        // B. Authentic MS Paint Watercolor Bristle Strands (13 textured micro-fibers with natural variation)
+        const bristleCount = 13;
+        const bristleWeights = [0.18, 0.28, 0.42, 0.55, 0.65, 0.75, 0.8, 0.72, 0.62, 0.52, 0.4, 0.26, 0.16];
+        const bristleWidths = [1.2, 1.4, 1.8, 2.2, 2.4, 2.6, 2.8, 2.5, 2.2, 1.8, 1.5, 1.3, 1.1];
+
+        for (let b = 0; b < bristleCount; b++) {
+          const offsetFrac = ((b / (bristleCount - 1)) - 0.5); // -0.5 to +0.5
+          const weight = bristleWeights[b] || 0.5;
+          const bristleThickness = Math.max(0.8, (baseWidth * 0.35) * (bristleWidths[b] / 2.0));
+          ctx.lineWidth = bristleThickness;
+
+          // Render stroke segment-by-segment with smooth curve & distance pigment fade
+          for (let i = 0; i < numPts - 1; i++) {
+            const p1 = pts[i];
+            const p2 = pts[i + 1];
+            const n1 = normals[i];
+            const n2 = normals[i + 1];
+
+            // Offset points along normal
+            const bOffset = offsetFrac * ribbonWidth;
+            const x1 = p1.x + n1.nx * bOffset;
+            const y1 = p1.y + n1.ny * bOffset;
+            const x2 = p2.x + n2.nx * bOffset;
+            const y2 = p2.y + n2.ny * bOffset;
+
+            // MS Paint watercolor pigment runout (starts saturated ~0.65, fades smoothly to ~0.22)
+            const currentDist = dists[i];
+            const fadeFactor = Math.max(0.24, 1.0 - (currentDist / 1200) * 0.72);
+            ctx.globalAlpha = Math.min(0.85, 0.28 * weight * fadeFactor);
+
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+          }
+        }
+
+        // C. Micro-pigment paper tooth grain along the watercolor stroke
+        ctx.fillStyle = color;
+        const grainStep = Math.max(4, Math.floor(baseWidth * 0.8));
+        for (let i = 0; i < numPts - 1; i += 2) {
+          const p1 = pts[i];
+          const p2 = pts[i + 1] || pts[i];
+          const n = normals[i];
+          const currentDist = dists[i];
+          const fadeFactor = Math.max(0.2, 1.0 - (currentDist / 1200) * 0.7);
+          const seed = i * 89 + 17;
+
+          for (let g = 0; g < 4; g++) {
+            const rOffset = ((Math.sin(seed + g * 31.7)) * 0.45) * ribbonWidth;
+            const gx = (p1.x + p2.x) / 2 + n.nx * rOffset + (Math.cos(seed + g * 13) * 1.5);
+            const gy = (p1.y + p2.y) / 2 + n.ny * rOffset + (Math.sin(seed + g * 23) * 1.5);
+            ctx.globalAlpha = 0.15 * fadeFactor;
+            ctx.fillRect(gx, gy, 1.5, 1.5);
+          }
+        }
+
+        ctx.restore();
+        break;
+      }
+    }
+  }
+
+  function drawElement(ctx, el) {
+    ctx.save();
+    ctx.strokeStyle = el.color || '#FF6B4A';
+    ctx.fillStyle = el.color || '#FF6B4A';
+    ctx.lineWidth = (el.width || 3) * state.zoom;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (ALL_BRUSH_TOOLS.includes(el.type)) {
+      drawBrushStroke(ctx, el);
+    } else if (ALL_2D_SHAPES.includes(el.type)) {
+      const s = worldToScreen(el.x, el.y);
+      const w = el.w * state.zoom;
+      const h = el.h * state.zoom;
+      drawShape2DPath(ctx, el.type, s.x, s.y, w, h);
+      if (el.fillStyle && el.fillStyle !== 'none') {
+        ctx.save();
+        const fillColor = (el.fillColor === 'match' || !el.fillColor) ? (el.color || '#FF6B4A') : el.fillColor;
+        ctx.fillStyle = fillColor;
+        if (el.fillStyle === 'semi') {
+          ctx.globalAlpha = 0.35;
+        }
         ctx.fill();
-        break;
+        ctx.restore();
       }
+      ctx.stroke();
+    } else {
+      switch (el.type) {
+        case 'line': {
+          const s1 = worldToScreen(el.x1, el.y1);
+          const s2 = worldToScreen(el.x2, el.y2);
+          ctx.beginPath();
+          ctx.moveTo(s1.x, s1.y);
+          ctx.lineTo(s2.x, s2.y);
+          ctx.stroke();
+          break;
+        }
 
-      case 'image': {
-        let img = state.imageElementsMap.get(el.id);
-        if (!img) {
-          img = new Image();
-          img.src = el.src;
-          state.imageElementsMap.set(el.id, img);
-          img.onload = () => redrawBoard();
+        case 'curve': {
+          const s1 = worldToScreen(el.x1, el.y1);
+          const s2 = worldToScreen(el.x2, el.y2);
+          const midX = (s1.x + s2.x) / 2;
+          const midY = (s1.y + s2.y) / 2;
+          const dx = s2.x - s1.x;
+          const dy = s2.y - s1.y;
+          const dist = Math.hypot(dx, dy);
+          const normalX = -dy / (dist || 1);
+          const normalY = dx / (dist || 1);
+          const bend = (el.bend !== undefined ? el.bend : 0.3) * dist;
+          const cpX = midX + normalX * bend;
+          const cpY = midY + normalY * bend;
+          ctx.beginPath();
+          ctx.moveTo(s1.x, s1.y);
+          ctx.quadraticCurveTo(cpX, cpY, s2.x, s2.y);
+          ctx.stroke();
+          break;
         }
-        if (img.complete && img.naturalWidth > 0) {
-          const s = worldToScreen(el.x, el.y);
-          ctx.drawImage(img, s.x, s.y, el.w * state.zoom, el.h * state.zoom);
+
+        case 'arrow': {
+          const s1 = worldToScreen(el.x1, el.y1);
+          const s2 = worldToScreen(el.x2, el.y2);
+          ctx.beginPath();
+          ctx.moveTo(s1.x, s1.y);
+          ctx.lineTo(s2.x, s2.y);
+          ctx.stroke();
+
+          const angle = Math.atan2(s2.y - s1.y, s2.x - s1.x);
+          const headLen = Math.max(12, (el.width || 3) * 3.5 * state.zoom);
+          ctx.beginPath();
+          ctx.moveTo(s2.x, s2.y);
+          ctx.lineTo(s2.x - headLen * Math.cos(angle - Math.PI / 6), s2.y - headLen * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(s2.x - headLen * Math.cos(angle + Math.PI / 6), s2.y - headLen * Math.sin(angle + Math.PI / 6));
+          ctx.closePath();
+          ctx.fill();
+          break;
         }
-        break;
+
+        case 'image': {
+          let img = state.imageElementsMap.get(el.id);
+          if (!img) {
+            img = new Image();
+            img.src = el.src;
+            state.imageElementsMap.set(el.id, img);
+            img.onload = () => redrawBoard();
+          }
+          if (img.complete && img.naturalWidth > 0) {
+            const s = worldToScreen(el.x, el.y);
+            ctx.drawImage(img, s.x, s.y, el.w * state.zoom, el.h * state.zoom);
+          }
+          break;
+        }
       }
     }
     ctx.restore();
@@ -1146,6 +1804,9 @@
         const body = domNode.querySelector('.code-body');
         if (body) body.style.height = `${el.h}px`;
       }
+    } else if (el.type === 'sticky') {
+      if (el.w) domNode.style.width = `${el.w}px`;
+      if (el.h) domNode.style.minHeight = `${el.h}px`;
     }
   }
 
@@ -1162,6 +1823,11 @@
     const card = document.createElement('div');
     card.className = `sticky-note-card theme-${el.theme || 'yellow'}`;
     card.dataset.id = el.id;
+
+    el.w = el.w || 220;
+    el.h = el.h || 180;
+    card.style.width = `${el.w}px`;
+    card.style.minHeight = `${el.h}px`;
 
     const header = document.createElement('div');
     header.className = 'sticky-header';
@@ -1194,6 +1860,50 @@
       actions.appendChild(dot);
     });
 
+    // Enlarge / Size Cycle Button
+    const enlargeBtn = document.createElement('button');
+    enlargeBtn.className = 'sticky-btn-enlarge';
+    enlargeBtn.title = 'Enlarge Note (Cycle: Small, Medium, Large, XL)';
+    enlargeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>';
+
+    const STICKY_SIZES = [
+      { name: 'Small', w: 200, h: 160 },
+      { name: 'Medium', w: 280, h: 220 },
+      { name: 'Large', w: 380, h: 300 },
+      { name: 'Extra Large', w: 500, h: 380 }
+    ];
+
+    ['pointerdown', 'mousedown'].forEach((evtType) => {
+      enlargeBtn.addEventListener(evtType, (e) => e.stopPropagation());
+    });
+
+    enlargeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!canCurrentUserDraw()) {
+        showToast('🎓 Presentation Mode: Only the Host can edit canvas.', 'warning');
+        return;
+      }
+      const curW = el.w || 220;
+      let nextIdx = 0;
+      for (let i = 0; i < STICKY_SIZES.length; i++) {
+        if (curW < STICKY_SIZES[i].w - 10) {
+          nextIdx = i;
+          break;
+        }
+      }
+      if (curW >= STICKY_SIZES[STICKY_SIZES.length - 1].w - 10) {
+        nextIdx = 0;
+      }
+      const targetSize = STICKY_SIZES[nextIdx];
+      el.w = targetSize.w;
+      el.h = targetSize.h;
+      card.style.width = `${el.w}px`;
+      card.style.minHeight = `${el.h}px`;
+      sound.playPop();
+      socket.emit('element:update', { id: el.id, w: el.w, h: el.h });
+      showToast(`Sticky Note: ${targetSize.name} (${targetSize.w}×${targetSize.h})`);
+    });
+
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'sticky-btn-delete';
     deleteBtn.innerHTML = '&times;';
@@ -1217,6 +1927,7 @@
       showToast('Sticky note deleted');
     });
 
+    actions.appendChild(enlargeBtn);
     actions.appendChild(deleteBtn);
     header.appendChild(authorTag);
     header.appendChild(actions);
@@ -1245,15 +1956,57 @@
       typingTimeout = setTimeout(() => socket.emit('element:update', { id: el.id, text: el.text }), 150);
     });
 
+    // Bottom-Right Corner Drag-to-Resize Grip Handle
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'sticky-resize-handle';
+    resizeHandle.title = 'Drag to Resize Sticky Note';
+    resizeHandle.innerHTML = '<svg viewBox="0 0 10 10" width="10" height="10"><path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+    let isResizing = false;
+    let resizeStartPos = { x: 0, y: 0 };
+    let startDimensions = { w: el.w || 220, h: el.h || 180 };
+
+    resizeHandle.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (!canCurrentUserDraw()) return;
+      isResizing = true;
+      resizeStartPos = { x: e.clientX, y: e.clientY };
+      startDimensions = { w: el.w || card.offsetWidth, h: el.h || card.offsetHeight };
+      resizeHandle.setPointerCapture(e.pointerId);
+      card.style.zIndex = '100';
+    });
+
+    resizeHandle.addEventListener('pointermove', (e) => {
+      if (!isResizing) return;
+      const dx = (e.clientX - resizeStartPos.x) / state.zoom;
+      const dy = (e.clientY - resizeStartPos.y) / state.zoom;
+      const newW = Math.max(160, Math.min(800, Math.round(startDimensions.w + dx)));
+      const newH = Math.max(130, Math.min(800, Math.round(startDimensions.h + dy)));
+      el.w = newW;
+      el.h = newH;
+      card.style.width = `${newW}px`;
+      card.style.minHeight = `${newH}px`;
+    });
+
+    resizeHandle.addEventListener('pointerup', (e) => {
+      if (!isResizing) return;
+      isResizing = false;
+      card.style.zIndex = '';
+      try { resizeHandle.releasePointerCapture(e.pointerId); } catch (err) {}
+      socket.emit('element:update', { id: el.id, w: el.w, h: el.h });
+      sound.playClick();
+    });
+
     card.appendChild(header);
     card.appendChild(textarea);
+    card.appendChild(resizeHandle);
 
     let isDragging = false;
     let dragStartPos = { x: 0, y: 0 };
     let initialWorldPos = { x: el.x, y: el.y };
 
     header.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('.sticky-actions') || e.target.closest('.sticky-btn-delete')) return;
+      if (e.target.closest('.sticky-actions') || e.target.closest('.sticky-btn-delete') || e.target.closest('.sticky-btn-enlarge')) return;
       if (!canCurrentUserDraw()) return;
       isDragging = true;
       dragStartPos = { x: e.clientX, y: e.clientY };
@@ -1532,7 +2285,7 @@
       filenameInput.addEventListener(evtType, (e) => e.stopPropagation());
       langSelect.addEventListener(evtType, (e) => e.stopPropagation());
     });
-    ['pointerdown', 'mousedown', 'click'].forEach((evtType) => {
+    ['pointerdown', 'mousedown'].forEach((evtType) => {
       copyBtn.addEventListener(evtType, (e) => e.stopPropagation());
       deleteBtn.addEventListener(evtType, (e) => e.stopPropagation());
     });
@@ -1753,8 +2506,9 @@
       }, 1500);
     });
 
-    deleteBtn.addEventListener('click', () => {
+    deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      e.preventDefault();
       if (!canCurrentUserDraw()) {
         showToast('🎓 Presentation Mode: Only Host can edit canvas.', 'warning');
         return;
@@ -1762,6 +2516,7 @@
       card.remove();
       state.domElementsMap.delete(el.id);
       state.elements = state.elements.filter((item) => item.id !== el.id);
+      redrawBoard();
       sound.playPop();
       socket.emit('element:delete', el.id);
       showToast('Deleted code block');
@@ -1840,10 +2595,120 @@
     return card;
   }
 
-  // --- 10. Selection Handles ---
+  // --- 10. Selection Handles & Size Sync Engine ---
+  function setBrushSize(newSize) {
+    const clamped = Math.max(1, Math.min(50, Math.round(newSize)));
+    state.activeWidth = clamped;
+    syncBrushSizeUI();
+    syncColorPopoverUI();
+    if (state.selectedElementId && canCurrentUserDraw()) {
+      const el = state.elements.find((item) => item.id === state.selectedElementId);
+      if (el) {
+        el.width = state.activeWidth;
+        redrawBoard();
+        socket.emit('element:update', el);
+      }
+    }
+  }
+
+  function syncBrushSizeUI() {
+    const size = state.activeWidth || 3;
+    const badge = document.getElementById('brushSizeValBadge');
+    const slider = document.getElementById('brushSizeSlider');
+    const previewDot = document.getElementById('brushSizePreviewDot');
+
+    if (badge) badge.textContent = `${size} px`;
+    if (slider) slider.value = size;
+    if (previewDot) {
+      const dotDiameter = Math.min(42, Math.max(3, size * 1.3));
+      previewDot.style.width = `${dotDiameter}px`;
+      previewDot.style.height = `${dotDiameter}px`;
+      previewDot.style.backgroundColor = state.activeColor || '#FF6B4A';
+    }
+
+    document.querySelectorAll('.size-preset-btn').forEach((btn) => {
+      btn.classList.toggle('active', parseInt(btn.dataset.size, 10) === size);
+    });
+
+    if (colorPopover) {
+      colorPopover.querySelectorAll('.width-btn').forEach((b) => {
+        b.classList.toggle('active', parseInt(b.dataset.width, 10) === size);
+      });
+    }
+  }
+
+  function setEraserSize(newSize) {
+    const clamped = Math.max(4, Math.min(64, Math.round(newSize)));
+    state.activeEraserSize = clamped;
+    syncEraserSizeUI();
+  }
+
+  function syncEraserSizeUI() {
+    const size = state.activeEraserSize || 20;
+    const badge = document.getElementById('eraserSizeValBadge');
+    const slider = document.getElementById('eraserSizeSlider');
+    const previewDot = document.getElementById('eraserSizePreviewDot');
+
+    if (badge) badge.textContent = `${size} px`;
+    if (slider) slider.value = size;
+    if (previewDot) {
+      const previewDim = Math.min(42, Math.max(8, size * 0.9));
+      previewDot.style.width = `${previewDim}px`;
+      previewDot.style.height = `${previewDim}px`;
+    }
+
+    document.querySelectorAll('.eraser-preset-btn').forEach((btn) => {
+      btn.classList.toggle('active', parseInt(btn.dataset.size, 10) === size);
+    });
+  }
+
+  function syncColorPopoverUI() {
+    if (!colorPopover) return;
+    const slot1Btn = document.getElementById('slotColor1');
+    const slot2Btn = document.getElementById('slotColor2');
+    const slotSwatch1 = document.getElementById('slotSwatch1');
+    const slotSwatch2 = document.getElementById('slotSwatch2');
+    const activeColorDot = document.getElementById('activeColorDot');
+    const activeFillDot = document.getElementById('activeFillDot');
+
+    if (slot1Btn) slot1Btn.classList.toggle('active', state.activeColorSlot === 'color1');
+    if (slot2Btn) slot2Btn.classList.toggle('active', state.activeColorSlot === 'color2');
+
+    if (slotSwatch1) slotSwatch1.style.backgroundColor = state.activeColor;
+    if (slotSwatch2) slotSwatch2.style.backgroundColor = state.activeFillColor;
+    if (activeColorDot) activeColorDot.style.backgroundColor = state.activeColor;
+    if (activeFillDot) activeFillDot.style.backgroundColor = state.activeFillColor;
+
+    const currentSelectedColor = (state.activeColorSlot === 'color1' ? state.activeColor : state.activeFillColor) || '#ED1C24';
+    colorPopover.querySelectorAll('.ms-color-dot').forEach((b) => {
+      b.classList.toggle('active', b.dataset.color.toLowerCase() === currentSelectedColor.toLowerCase());
+    });
+
+    colorPopover.querySelectorAll('.fill-style-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.fill === (state.activeFillStyle || 'none'));
+    });
+    colorPopover.querySelectorAll('.width-btn').forEach((b) => {
+      b.classList.toggle('active', parseInt(b.dataset.width, 10) === state.activeWidth);
+    });
+
+    const previewDot = document.getElementById('brushSizePreviewDot');
+    if (previewDot) previewDot.style.backgroundColor = state.activeColor || '#FF6B4A';
+  }
+
   function selectElement(id) {
     state.selectedElementId = id;
     updateSelectionBoxPosition();
+    const el = state.elements.find((item) => item.id === id);
+    if (el) {
+      if (el.color) state.activeColor = el.color;
+      if (el.width) {
+        state.activeWidth = el.width;
+        syncBrushSizeUI();
+      }
+      if (el.fillStyle !== undefined) state.activeFillStyle = el.fillStyle;
+      if (el.fillColor !== undefined) state.activeFillColor = el.fillColor;
+      syncColorPopoverUI();
+    }
   }
 
   function clearSelection() {
@@ -2093,168 +2958,171 @@
       cursorCtx.restore();
     }
 
-    // Remote Cursors
-    state.collaborators.forEach((peer) => {
-      if (!peer.cursor) return;
-      const screenPos = worldToScreen(peer.cursor.x, peer.cursor.y);
-      const color = peer.color || '#FF6B4A';
+    // Remote Cursors (Rendered if user has not toggled them hidden)
+    if (state.showRemoteCursors !== false) {
+      state.collaborators.forEach((peer) => {
+        if (!peer.cursor) return;
+        const screenPos = worldToScreen(peer.cursor.x, peer.cursor.y);
+        const color = peer.color || '#FF6B4A';
 
-      cursorCtx.save();
-      cursorCtx.translate(screenPos.x, screenPos.y);
-      cursorCtx.fillStyle = color;
-      cursorCtx.strokeStyle = '#0C0E14';
-      cursorCtx.lineWidth = 1.5;
-
-      cursorCtx.beginPath();
-      cursorCtx.moveTo(0, 0);
-      cursorCtx.lineTo(0, 16);
-      cursorCtx.lineTo(4.5, 12);
-      cursorCtx.lineTo(8.5, 19);
-      cursorCtx.lineTo(11, 18);
-      cursorCtx.lineTo(7, 11);
-      cursorCtx.lineTo(12, 11);
-      cursorCtx.closePath();
-      cursorCtx.fill();
-      const isImg = isImageAvatar(peer.avatar);
-      let imgObj = null;
-      if (isImg) {
-        if (!remoteAvatarImageCache.has(peer.avatar)) {
-          const img = new Image();
-          img.src = peer.avatar;
-          remoteAvatarImageCache.set(peer.avatar, img);
-        }
-        imgObj = remoteAvatarImageCache.get(peer.avatar);
-      }
-
-      const displayName = peer.name || 'Collaborator';
-      const isPeerHost = state.hostSessionId && peer.sessionId === state.hostSessionId;
-
-      // 2. Avatar Circle (positioned under the cursor arrow)
-      const circleCenterX = 14;
-      const circleCenterY = 28;
-      const circleRadius = 13;
-
-      // Circle drop shadow
-      cursorCtx.save();
-      cursorCtx.shadowColor = 'rgba(0, 0, 0, 0.25)';
-      cursorCtx.shadowBlur = 4;
-      cursorCtx.shadowOffsetY = 2;
-
-      // Circle background fill
-      cursorCtx.fillStyle = '#FFFFFF';
-      cursorCtx.beginPath();
-      cursorCtx.arc(circleCenterX, circleCenterY, circleRadius, 0, Math.PI * 2);
-      cursorCtx.fill();
-      cursorCtx.restore();
-
-      // Circle colored border
-      cursorCtx.strokeStyle = color;
-      cursorCtx.lineWidth = 2.5;
-      cursorCtx.beginPath();
-      cursorCtx.arc(circleCenterX, circleCenterY, circleRadius, 0, Math.PI * 2);
-      cursorCtx.stroke();
-
-      // Circle subtle dark outer rim
-      cursorCtx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
-      cursorCtx.lineWidth = 1;
-      cursorCtx.beginPath();
-      cursorCtx.arc(circleCenterX, circleCenterY, circleRadius + 1, 0, Math.PI * 2);
-      cursorCtx.stroke();
-
-      // Render Avatar inside Circle
-      if (isImg && imgObj && imgObj.complete && imgObj.naturalWidth > 0) {
         cursorCtx.save();
-        cursorCtx.beginPath();
-        cursorCtx.arc(circleCenterX, circleCenterY, circleRadius - 1.5, 0, Math.PI * 2);
-        cursorCtx.clip();
-        cursorCtx.drawImage(
-          imgObj,
-          circleCenterX - circleRadius + 1.5,
-          circleCenterY - circleRadius + 1.5,
-          (circleRadius - 1.5) * 2,
-          (circleRadius - 1.5) * 2
-        );
-        cursorCtx.restore();
-      } else {
-        // Emoji avatar
-        cursorCtx.font = '14px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
-        cursorCtx.textAlign = 'center';
-        cursorCtx.textBaseline = 'middle';
-        cursorCtx.fillText(peer.avatar || '👤', circleCenterX, circleCenterY + 1);
-      }
-
-      const isPeerPrimaryHost = state.hostSessionId && peer.sessionId === state.hostSessionId;
-      const isPeerCoHost = !!(state.coHostSessionIds && state.coHostSessionIds.has(peer.sessionId));
-
-      // Host / Co-Host indicator on cursor
-      if (isPeerPrimaryHost) {
-        cursorCtx.font = '10px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-        cursorCtx.textAlign = 'center';
-        cursorCtx.textBaseline = 'middle';
-        cursorCtx.fillText('👑', circleCenterX + 10, circleCenterY - 9);
-      } else if (isPeerCoHost) {
-        cursorCtx.font = '10px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-        cursorCtx.textAlign = 'center';
-        cursorCtx.textBaseline = 'middle';
-        cursorCtx.fillText('⭐', circleCenterX + 10, circleCenterY - 9);
-      }
-
-      // 3. Name Label (Centered directly UNDER the Avatar Circle)
-      cursorCtx.font = '700 10.5px "Plus Jakarta Sans", sans-serif';
-      const textWidth = cursorCtx.measureText(displayName).width;
-      const nameBadgeH = 19;
-      const nameBadgeW = Math.max(34, textWidth + 14);
-      const nameBadgeX = circleCenterX - nameBadgeW / 2;
-      const nameBadgeY = circleCenterY + circleRadius + 4;
-
-      // Badge pill background
-      cursorCtx.save();
-      cursorCtx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-      cursorCtx.shadowBlur = 3;
-      cursorCtx.shadowOffsetY = 1.5;
-      cursorCtx.fillStyle = color;
-      cursorCtx.beginPath();
-      if (cursorCtx.roundRect) cursorCtx.roundRect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH, 6);
-      else cursorCtx.rect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH);
-      cursorCtx.fill();
-      cursorCtx.restore();
-
-      // Badge stroke
-      cursorCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-      cursorCtx.lineWidth = 1;
-      cursorCtx.beginPath();
-      if (cursorCtx.roundRect) cursorCtx.roundRect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH, 6);
-      else cursorCtx.rect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH);
-      cursorCtx.stroke();
-
-      // Badge text
-      cursorCtx.fillStyle = '#FFFFFF';
-      cursorCtx.textAlign = 'center';
-      cursorCtx.textBaseline = 'middle';
-      cursorCtx.fillText(displayName, circleCenterX, nameBadgeY + nameBadgeH / 2 + 0.5);
-
-      if (peer.chatText && peer.chatText.trim().length > 0) {
-        cursorCtx.font = '600 13px "Plus Jakarta Sans", sans-serif';
-        const chatW = Math.max(80, cursorCtx.measureText(peer.chatText).width + 20);
-        const chatH = 28;
-
-        cursorCtx.fillStyle = '#181B24';
-        cursorCtx.strokeStyle = color;
+        cursorCtx.translate(screenPos.x, screenPos.y);
+        cursorCtx.fillStyle = color;
+        cursorCtx.strokeStyle = '#0C0E14';
         cursorCtx.lineWidth = 1.5;
 
         cursorCtx.beginPath();
-        if (cursorCtx.roundRect) cursorCtx.roundRect(14, -36, chatW, chatH, 8);
-        else cursorCtx.rect(14, -36, chatW, chatH);
+        cursorCtx.moveTo(0, 0);
+        cursorCtx.lineTo(0, 16);
+        cursorCtx.lineTo(4.5, 12);
+        cursorCtx.lineTo(8.5, 19);
+        cursorCtx.lineTo(11, 18);
+        cursorCtx.lineTo(7, 11);
+        cursorCtx.lineTo(12, 11);
+        cursorCtx.closePath();
         cursorCtx.fill();
         cursorCtx.stroke();
+        const isImg = isImageAvatar(peer.avatar);
+        let imgObj = null;
+        if (isImg) {
+          if (!remoteAvatarImageCache.has(peer.avatar)) {
+            const img = new Image();
+            img.src = peer.avatar;
+            remoteAvatarImageCache.set(peer.avatar, img);
+          }
+          imgObj = remoteAvatarImageCache.get(peer.avatar);
+        }
 
+        const displayName = peer.name || 'Collaborator';
+        const isPeerHost = state.hostSessionId && peer.sessionId === state.hostSessionId;
+
+        // 2. Avatar Circle (positioned under the cursor arrow)
+        const circleCenterX = 14;
+        const circleCenterY = 28;
+        const circleRadius = 13;
+
+        // Circle drop shadow
+        cursorCtx.save();
+        cursorCtx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+        cursorCtx.shadowBlur = 4;
+        cursorCtx.shadowOffsetY = 2;
+
+        // Circle background fill
         cursorCtx.fillStyle = '#FFFFFF';
-        cursorCtx.textAlign = 'left';
+        cursorCtx.beginPath();
+        cursorCtx.arc(circleCenterX, circleCenterY, circleRadius, 0, Math.PI * 2);
+        cursorCtx.fill();
+        cursorCtx.restore();
+
+        // Circle colored border
+        cursorCtx.strokeStyle = color;
+        cursorCtx.lineWidth = 2.5;
+        cursorCtx.beginPath();
+        cursorCtx.arc(circleCenterX, circleCenterY, circleRadius, 0, Math.PI * 2);
+        cursorCtx.stroke();
+
+        // Circle subtle dark outer rim
+        cursorCtx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+        cursorCtx.lineWidth = 1;
+        cursorCtx.beginPath();
+        cursorCtx.arc(circleCenterX, circleCenterY, circleRadius + 1, 0, Math.PI * 2);
+        cursorCtx.stroke();
+
+        // Render Avatar inside Circle
+        if (isImg && imgObj && imgObj.complete && imgObj.naturalWidth > 0) {
+          cursorCtx.save();
+          cursorCtx.beginPath();
+          cursorCtx.arc(circleCenterX, circleCenterY, circleRadius - 1.5, 0, Math.PI * 2);
+          cursorCtx.clip();
+          cursorCtx.drawImage(
+            imgObj,
+            circleCenterX - circleRadius + 1.5,
+            circleCenterY - circleRadius + 1.5,
+            (circleRadius - 1.5) * 2,
+            (circleRadius - 1.5) * 2
+          );
+          cursorCtx.restore();
+        } else {
+          // Emoji avatar
+          cursorCtx.font = '14px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+          cursorCtx.textAlign = 'center';
+          cursorCtx.textBaseline = 'middle';
+          cursorCtx.fillText(peer.avatar || '👤', circleCenterX, circleCenterY + 1);
+        }
+
+        const isPeerPrimaryHost = state.hostSessionId && peer.sessionId === state.hostSessionId;
+        const isPeerCoHost = !!(state.coHostSessionIds && state.coHostSessionIds.has(peer.sessionId));
+
+        // Host / Co-Host indicator on cursor
+        if (isPeerPrimaryHost) {
+          cursorCtx.font = '10px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+          cursorCtx.textAlign = 'center';
+          cursorCtx.textBaseline = 'middle';
+          cursorCtx.fillText('👑', circleCenterX + 10, circleCenterY - 9);
+        } else if (isPeerCoHost) {
+          cursorCtx.font = '10px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+          cursorCtx.textAlign = 'center';
+          cursorCtx.textBaseline = 'middle';
+          cursorCtx.fillText('⭐', circleCenterX + 10, circleCenterY - 9);
+        }
+
+        // 3. Name Label (Centered directly UNDER the Avatar Circle)
+        cursorCtx.font = '700 10.5px "Plus Jakarta Sans", sans-serif';
+        const textWidth = cursorCtx.measureText(displayName).width;
+        const nameBadgeH = 19;
+        const nameBadgeW = Math.max(34, textWidth + 14);
+        const nameBadgeX = circleCenterX - nameBadgeW / 2;
+        const nameBadgeY = circleCenterY + circleRadius + 4;
+
+        // Badge pill background
+        cursorCtx.save();
+        cursorCtx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+        cursorCtx.shadowBlur = 3;
+        cursorCtx.shadowOffsetY = 1.5;
+        cursorCtx.fillStyle = color;
+        cursorCtx.beginPath();
+        if (cursorCtx.roundRect) cursorCtx.roundRect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH, 6);
+        else cursorCtx.rect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH);
+        cursorCtx.fill();
+        cursorCtx.restore();
+
+        // Badge stroke
+        cursorCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+        cursorCtx.lineWidth = 1;
+        cursorCtx.beginPath();
+        if (cursorCtx.roundRect) cursorCtx.roundRect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH, 6);
+        else cursorCtx.rect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH);
+        cursorCtx.stroke();
+
+        // Badge text
+        cursorCtx.fillStyle = '#FFFFFF';
+        cursorCtx.textAlign = 'center';
         cursorCtx.textBaseline = 'middle';
-        cursorCtx.fillText(peer.chatText, 24, -36 + chatH / 2);
-      }
-      cursorCtx.restore();
-    });
+        cursorCtx.fillText(displayName, circleCenterX, nameBadgeY + nameBadgeH / 2 + 0.5);
+
+        if (peer.chatText && peer.chatText.trim().length > 0) {
+          cursorCtx.font = '600 13px "Plus Jakarta Sans", sans-serif';
+          const chatW = Math.max(80, cursorCtx.measureText(peer.chatText).width + 20);
+          const chatH = 28;
+
+          cursorCtx.fillStyle = '#181B24';
+          cursorCtx.strokeStyle = color;
+          cursorCtx.lineWidth = 1.5;
+
+          cursorCtx.beginPath();
+          if (cursorCtx.roundRect) cursorCtx.roundRect(14, -36, chatW, chatH, 8);
+          else cursorCtx.rect(14, -36, chatW, chatH);
+          cursorCtx.fill();
+          cursorCtx.stroke();
+
+          cursorCtx.fillStyle = '#FFFFFF';
+          cursorCtx.textAlign = 'left';
+          cursorCtx.textBaseline = 'middle';
+          cursorCtx.fillText(peer.chatText, 24, -36 + chatH / 2);
+        }
+        cursorCtx.restore();
+      });
+    }
 
     // Particles
     for (let i = state.particles.length - 1; i >= 0; i--) {
@@ -2278,6 +3146,29 @@
       cursorCtx.textAlign = 'center';
       cursorCtx.textBaseline = 'middle';
       cursorCtx.fillText(p.emoji, 0, 0);
+      cursorCtx.restore();
+    }
+
+    // Live Eraser Cursor Box (MS Paint Style)
+    if (state.activeTool === 'eraser' && lastClientPos.x > 0 && lastClientPos.y > 0) {
+      const eraserScreenSize = Math.max(6, (state.activeEraserSize || 20) * state.zoom);
+      cursorCtx.save();
+      cursorCtx.translate(lastClientPos.x, lastClientPos.y);
+
+      // Outer outline
+      cursorCtx.strokeStyle = currentTheme === 'dark' ? '#FFFFFF' : '#0F172A';
+      cursorCtx.lineWidth = 1.6;
+      cursorCtx.fillStyle = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.12)';
+      cursorCtx.beginPath();
+      cursorCtx.rect(-eraserScreenSize / 2, -eraserScreenSize / 2, eraserScreenSize, eraserScreenSize);
+      cursorCtx.fill();
+      cursorCtx.stroke();
+
+      // Inner contrast border
+      cursorCtx.strokeStyle = currentTheme === 'dark' ? 'rgba(0, 0, 0, 0.65)' : 'rgba(255, 255, 255, 0.85)';
+      cursorCtx.lineWidth = 1;
+      cursorCtx.strokeRect(-eraserScreenSize / 2 + 1, -eraserScreenSize / 2 + 1, Math.max(1, eraserScreenSize - 2), Math.max(1, eraserScreenSize - 2));
+
       cursorCtx.restore();
     }
 
@@ -2673,8 +3564,54 @@
       }
 
       if (state.activeTool === 'eraser') {
+        lastEraserPos = worldPos;
         eraseAtPoint(worldPos);
         isDrawing = true;
+        return;
+      }
+
+      if (state.activeTool === 'fill') {
+        const hitId = hitTestAnyElement(worldPos);
+        const activeFill = (state.activeColorSlot === 'color2') ? state.activeFillColor : state.activeColor;
+        if (hitId) {
+          const el = state.elements.find((item) => item.id === hitId);
+          if (el) {
+            if (ALL_2D_SHAPES.includes(el.type)) {
+              const oldState = { fillStyle: el.fillStyle, fillColor: el.fillColor };
+              el.fillStyle = (state.activeFillStyle && state.activeFillStyle !== 'none') ? state.activeFillStyle : 'solid';
+              el.fillColor = activeFill;
+              state.undoStack.push({ type: 'update', element: el, previous: oldState });
+              state.redoStack = [];
+              redrawBoard();
+              socket.emit('element:update', el);
+              addEmojiBurst('🎨', e.clientX, e.clientY);
+              sound.playPop();
+              showToast('Filled shape with color!', 'success');
+            } else if (el.type === 'sticky') {
+              const themes = ['yellow', 'sky', 'pink', 'mint', 'purple', 'peach'];
+              const oldTheme = el.theme;
+              el.theme = themes[(themes.indexOf(el.theme) + 1) % themes.length];
+              const dom = state.domElementsMap.get(el.id);
+              if (dom) dom.className = `sticky-note-card theme-${el.theme}`;
+              state.undoStack.push({ type: 'update', element: el, previous: { theme: oldTheme } });
+              state.redoStack = [];
+              socket.emit('element:update', el);
+              addEmojiBurst('🎨', e.clientX, e.clientY);
+              sound.playPop();
+            } else if (el.type === 'pen' || el.type === 'line' || el.type === 'arrow' || el.type === 'curve' || el.type === 'text') {
+              const oldColor = el.color;
+              el.color = activeFill;
+              state.undoStack.push({ type: 'update', element: el, previous: { color: oldColor } });
+              state.redoStack = [];
+              redrawBoard();
+              socket.emit('element:update', el);
+              addEmojiBurst('🎨', e.clientX, e.clientY);
+              sound.playClick();
+            }
+          }
+        } else {
+          sound.playClick();
+        }
         return;
       }
 
@@ -2722,11 +3659,16 @@
       }
 
       if (state.activeTool === 'eraser') {
-        eraseAtPoint(worldPos);
+        if (lastEraserPos) {
+          eraseAlongLine(lastEraserPos, worldPos);
+        } else {
+          eraseAtPoint(worldPos);
+        }
+        lastEraserPos = worldPos;
         return;
       }
 
-      if (state.activeTool === 'pen' || state.activeTool === 'highlighter') {
+      if (ALL_BRUSH_TOOLS.includes(state.activeTool)) {
         activeStrokePoints.push(worldPos);
         draftCtx.clearRect(0, 0, viewWidth, viewHeight);
         drawElement(draftCtx, {
@@ -2735,7 +3677,7 @@
           color: state.activeColor,
           width: state.activeWidth
         });
-      } else if (['rect', 'circle', 'line', 'arrow'].includes(state.activeTool)) {
+      } else if (ALL_SHAPE_TOOLS.includes(state.activeTool)) {
         draftCtx.clearRect(0, 0, viewWidth, viewHeight);
         const previewElement = getShapeElementObject(state.activeTool, currentShapeStart, worldPos);
         if (previewElement) drawElement(draftCtx, previewElement);
@@ -2760,28 +3702,30 @@
 
       if (!isDrawing) return;
       isDrawing = false;
+      lastEraserPos = null;
       draftCtx.clearRect(0, 0, viewWidth, viewHeight);
 
       if (state.activeTool === 'eraser' || state.activeTool === 'laser') return;
 
       const worldPos = screenToWorld(e.clientX, e.clientY);
 
-      if (state.activeTool === 'pen' || state.activeTool === 'highlighter') {
+      if (ALL_BRUSH_TOOLS.includes(state.activeTool)) {
         if (activeStrokePoints.length === 1) {
           activeStrokePoints.push({ x: activeStrokePoints[0].x + 0.1, y: activeStrokePoints[0].y + 0.1 });
         }
         if (activeStrokePoints.length > 1) {
-          const simplified = simplifyPoints(activeStrokePoints, 1.5);
+          const isSmoothStandard = (state.activeTool === 'pen' || state.activeTool === 'brush');
+          const finalPoints = isSmoothStandard ? simplifyPoints(activeStrokePoints, 0.3) : activeStrokePoints.slice();
           const newEl = {
             id: 'stroke_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             type: state.activeTool,
-            points: simplified,
+            points: finalPoints,
             color: state.activeColor,
             width: state.activeWidth
           };
           commitNewElement(newEl);
         }
-      } else if (['rect', 'circle', 'line', 'arrow'].includes(state.activeTool)) {
+      } else if (ALL_SHAPE_TOOLS.includes(state.activeTool)) {
         const newEl = getShapeElementObject(state.activeTool, currentShapeStart, worldPos);
         if (newEl) commitNewElement(newEl);
       }
@@ -2880,16 +3824,23 @@
   }
 
   function hitTestAnyElement(worldPos) {
+    const threshold = 18 / state.zoom;
     for (let i = state.elements.length - 1; i >= 0; i--) {
       const el = state.elements[i];
-      if (el.type === 'rect' || el.type === 'image') {
-        if (worldPos.x >= el.x && worldPos.x <= el.x + el.w && worldPos.y >= el.y && worldPos.y <= el.y + el.h) return el.id;
-      } else if (el.type === 'circle') {
-        const cx = el.x + el.w / 2;
-        const cy = el.y + el.h / 2;
-        const rx = el.w / 2;
-        const ry = el.h / 2;
-        if (Math.pow((worldPos.x - cx) / Math.max(1, rx), 2) + Math.pow((worldPos.y - cy) / Math.max(1, ry), 2) <= 1.0) return el.id;
+      if (ALL_2D_SHAPES.includes(el.type) || el.type === 'image') {
+        const minX = Math.min(el.x, el.x + (el.w || 0));
+        const maxX = Math.max(el.x, el.x + (el.w || 0));
+        const minY = Math.min(el.y, el.y + (el.h || 0));
+        const maxY = Math.max(el.y, el.y + (el.h || 0));
+        if (worldPos.x >= minX && worldPos.x <= maxX && worldPos.y >= minY && worldPos.y <= maxY) return el.id;
+      } else if (el.type === 'line' || el.type === 'arrow' || el.type === 'curve') {
+        if (distToSegment(worldPos, { x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }) < threshold) return el.id;
+      } else if (ALL_BRUSH_TOOLS.includes(el.type)) {
+        if (el.points) {
+          for (let j = 0; j < el.points.length; j++) {
+            if (Math.hypot(el.points[j].x - worldPos.x, el.points[j].y - worldPos.y) < threshold) return el.id;
+          }
+        }
       }
     }
     return null;
@@ -2897,17 +3848,28 @@
 
   function getShapeElementObject(tool, start, end) {
     const id = 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
-    if (tool === 'rect' || tool === 'circle') {
+    if (tool === 'line' || tool === 'arrow' || tool === 'curve') {
+      const dist = Math.hypot(end.x - start.x, end.y - start.y);
+      if (dist < 3) return null;
+      return { id, type: tool, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color: state.activeColor, width: state.activeWidth };
+    } else if (ALL_2D_SHAPES.includes(tool)) {
       const x = Math.min(start.x, end.x);
       const y = Math.min(start.y, end.y);
       const w = Math.abs(end.x - start.x);
       const h = Math.abs(end.y - start.y);
       if (w < 2 && h < 2) return null;
-      return { id, type: tool, x, y, w, h, color: state.activeColor, width: state.activeWidth };
-    } else if (tool === 'line' || tool === 'arrow') {
-      const dist = Math.hypot(end.x - start.x, end.y - start.y);
-      if (dist < 3) return null;
-      return { id, type: tool, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color: state.activeColor, width: state.activeWidth };
+      return {
+        id,
+        type: tool,
+        x,
+        y,
+        w,
+        h,
+        color: state.activeColor,
+        width: state.activeWidth,
+        fillStyle: state.activeFillStyle || 'none',
+        fillColor: state.activeFillColor || '#FFFFFF'
+      };
     }
     return null;
   }
@@ -2920,45 +3882,166 @@
     socket.emit('element:add', el);
   }
 
+  let lastEraserPos = null;
+
   function eraseAtPoint(worldPos) {
-    const threshold = 18 / state.zoom;
+    const eraserRadius = (state.activeEraserSize || 20) / 2;
     let erasedAny = false;
 
     for (let i = state.elements.length - 1; i >= 0; i--) {
       const el = state.elements[i];
-      let hit = false;
 
-      if (el.type === 'pen' || el.type === 'highlighter') {
+      if (ALL_BRUSH_TOOLS.includes(el.type)) {
+        if (!el.points || el.points.length === 0) continue;
+
+        // Quick bounding box check
+        const bounds = getElementBounds(el);
+        if (
+          worldPos.x < bounds.minX - eraserRadius ||
+          worldPos.x > bounds.maxX + eraserRadius ||
+          worldPos.y < bounds.minY - eraserRadius ||
+          worldPos.y > bounds.maxY + eraserRadius
+        ) {
+          continue;
+        }
+
+        const strokeMargin = ((el.width || 3) * 0.5);
+
+        // Check if eraser touches any point or segment
+        let touches = false;
         for (let j = 0; j < el.points.length; j++) {
-          if (Math.hypot(el.points[j].x - worldPos.x, el.points[j].y - worldPos.y) < threshold) {
-            hit = true;
+          if (Math.hypot(el.points[j].x - worldPos.x, el.points[j].y - worldPos.y) <= eraserRadius + strokeMargin) {
+            touches = true;
             break;
           }
+          if (j < el.points.length - 1) {
+            if (distToSegment(worldPos, el.points[j], el.points[j + 1]) <= eraserRadius + strokeMargin) {
+              touches = true;
+              break;
+            }
+          }
         }
-      } else if (el.type === 'rect' || el.type === 'image') {
-        hit = worldPos.x >= el.x && worldPos.x <= el.x + el.w && worldPos.y >= el.y && worldPos.y <= el.y + el.h;
-      } else if (el.type === 'circle') {
-        const cx = el.x + el.w / 2;
-        const cy = el.y + el.h / 2;
-        const rx = el.w / 2;
-        const ry = el.h / 2;
-        hit = Math.pow((worldPos.x - cx) / Math.max(1, rx), 2) + Math.pow((worldPos.y - cy) / Math.max(1, ry), 2) <= 1.2;
-      } else if (el.type === 'line' || el.type === 'arrow') {
-        hit = distToSegment(worldPos, { x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }) < threshold;
-      }
 
-      if (hit) {
-        state.undoStack.push({ type: 'delete', element: el });
-        state.redoStack = [];
-        state.elements.splice(i, 1);
-        socket.emit('element:delete', el.id);
+        if (!touches) continue;
+
+        // Densify points along stroke so the eraser creates a smooth, razor-sharp cut
+        const dense = [];
+        const stepLimit = Math.max(1.8, eraserRadius / 3.5);
+        for (let j = 0; j < el.points.length - 1; j++) {
+          const pA = el.points[j];
+          const pB = el.points[j + 1];
+          dense.push(pA);
+          const d = Math.hypot(pB.x - pA.x, pB.y - pA.y);
+          if (d > stepLimit) {
+            const steps = Math.ceil(d / stepLimit);
+            for (let k = 1; k < steps; k++) {
+              const frac = k / steps;
+              dense.push({
+                x: pA.x + (pB.x - pA.x) * frac,
+                y: pA.y + (pB.y - pA.y) * frac
+              });
+            }
+          }
+        }
+        if (el.points.length > 0) {
+          dense.push(el.points[el.points.length - 1]);
+        }
+
+        // Split dense points into non-erased contiguous runs
+        const runs = [];
+        let currentRun = [];
+        for (let j = 0; j < dense.length; j++) {
+          const pt = dense[j];
+          const dist = Math.hypot(pt.x - worldPos.x, pt.y - worldPos.y);
+          if (dist > eraserRadius) {
+            currentRun.push(pt);
+          } else {
+            if (currentRun.length > 0) {
+              runs.push(currentRun);
+              currentRun = [];
+            }
+          }
+        }
+        if (currentRun.length > 0) {
+          runs.push(currentRun);
+        }
+
         erasedAny = true;
+        if (runs.length === 0) {
+          // Whole stroke erased
+          state.undoStack.push({ type: 'delete', element: el });
+          state.redoStack = [];
+          state.elements.splice(i, 1);
+          socket.emit('element:delete', el.id);
+        } else {
+          // Simplify slightly for clean vectors
+          const isSmooth = (el.type === 'pen' || el.type === 'brush');
+          const cleanRuns = runs.map(r => (isSmooth && r.length > 3) ? simplifyPoints(r, 0.3) : r);
+
+          const oldPoints = el.points;
+          el.points = cleanRuns[0];
+          state.undoStack.push({ type: 'update', element: el, previous: { points: oldPoints } });
+          state.redoStack = [];
+          socket.emit('element:update', el);
+
+          // Add newly created split fragments as independent stroke elements
+          for (let k = 1; k < cleanRuns.length; k++) {
+            const newSubEl = {
+              id: 'stroke_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+              type: el.type,
+              points: cleanRuns[k],
+              color: el.color,
+              width: el.width
+            };
+            state.elements.push(newSubEl);
+            socket.emit('element:add', newSubEl);
+          }
+        }
+      } else if (ALL_2D_SHAPES.includes(el.type) || el.type === 'image') {
+        const minX = Math.min(el.x, el.x + (el.w || 0));
+        const maxX = Math.max(el.x, el.x + (el.w || 0));
+        const minY = Math.min(el.y, el.y + (el.h || 0));
+        const maxY = Math.max(el.y, el.y + (el.h || 0));
+        const hit = worldPos.x >= minX - eraserRadius &&
+                    worldPos.x <= maxX + eraserRadius &&
+                    worldPos.y >= minY - eraserRadius &&
+                    worldPos.y <= maxY + eraserRadius;
+        if (hit) {
+          state.undoStack.push({ type: 'delete', element: el });
+          state.redoStack = [];
+          state.elements.splice(i, 1);
+          socket.emit('element:delete', el.id);
+          erasedAny = true;
+        }
+      } else if (el.type === 'line' || el.type === 'arrow' || el.type === 'curve') {
+        const hit = distToSegment(worldPos, { x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }) <= eraserRadius + (el.width || 3);
+        if (hit) {
+          state.undoStack.push({ type: 'delete', element: el });
+          state.redoStack = [];
+          state.elements.splice(i, 1);
+          socket.emit('element:delete', el.id);
+          erasedAny = true;
+        }
       }
     }
 
     if (erasedAny) {
       sound.playClick();
       redrawBoard();
+    }
+  }
+
+  function eraseAlongLine(p1, p2) {
+    const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const radius = (state.activeEraserSize || 20) / 2;
+    const step = Math.max(2.5, radius / 2.5);
+    const steps = Math.ceil(d / step);
+    for (let s = 0; s <= steps; s++) {
+      const frac = steps === 0 ? 0 : s / steps;
+      eraseAtPoint({
+        x: p1.x + (p2.x - p1.x) * frac,
+        y: p1.y + (p2.y - p1.y) * frac
+      });
     }
   }
 
@@ -3182,6 +4265,8 @@
     document.querySelectorAll('.dropdown-wrapper').forEach((d) => d.classList.remove('active'));
   }
 
+  let EMOJI_CATEGORIES = null;
+
   function setupPopovers() {
     if (roomModeBtn) {
       roomModeBtn.addEventListener('click', (e) => {
@@ -3221,6 +4306,149 @@
       });
     }
 
+    const brushPopoverBtn = document.getElementById('brushPopoverBtn');
+    const brushesPopover = document.getElementById('brushesPopover');
+    const activeBrushIcon = document.getElementById('activeBrushIcon');
+    const brushSizeSlider = document.getElementById('brushSizeSlider');
+    const btnBrushSizeDec = document.getElementById('btnBrushSizeDec');
+    const btnBrushSizeInc = document.getElementById('btnBrushSizeInc');
+    const brushSizePanel = document.querySelector('.brush-size-panel');
+
+    if (brushPopoverBtn && brushesPopover) {
+      brushPopoverBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!canCurrentUserDraw()) {
+          showToast('🎓 Presentation Mode: Only Host can draw.', 'warning');
+          return;
+        }
+        const parent = brushPopoverBtn.parentElement;
+        const isOpen = parent.classList.contains('open');
+        dismissAllPopovers();
+        if (!isOpen) {
+          parent.classList.add('open');
+          syncBrushSizeUI();
+        }
+        sound.playClick();
+      });
+
+      brushesPopover.querySelectorAll('.brush-item').forEach((item) => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!canCurrentUserDraw()) {
+            showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+            return;
+          }
+          const tool = item.dataset.tool;
+          state.activeTool = tool;
+          brushesPopover.querySelectorAll('.brush-item').forEach((i) => i.classList.remove('active'));
+          item.classList.add('active');
+          brushPopoverBtn.dataset.tool = tool;
+          updateActiveToolUI();
+          dismissAllPopovers();
+          sound.playClick();
+        });
+      });
+
+      if (brushSizePanel) {
+        brushSizePanel.addEventListener('click', (e) => e.stopPropagation());
+      }
+
+      if (brushSizeSlider) {
+        brushSizeSlider.addEventListener('input', (e) => {
+          const newSize = parseInt(e.target.value, 10);
+          setBrushSize(newSize);
+        });
+      }
+
+      if (btnBrushSizeDec) {
+        btnBrushSizeDec.addEventListener('click', (e) => {
+          e.stopPropagation();
+          setBrushSize(state.activeWidth - 1);
+          sound.playClick();
+        });
+      }
+
+      if (btnBrushSizeInc) {
+        btnBrushSizeInc.addEventListener('click', (e) => {
+          e.stopPropagation();
+          setBrushSize(state.activeWidth + 1);
+          sound.playClick();
+        });
+      }
+
+      brushesPopover.querySelectorAll('.size-preset-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const size = parseInt(btn.dataset.size, 10);
+          setBrushSize(size);
+          sound.playClick();
+        });
+      });
+    }
+
+    const eraserPopoverBtn = document.getElementById('eraserPopoverBtn');
+    const eraserPopover = document.getElementById('eraserPopover');
+    const btnEraserSizeDec = document.getElementById('btnEraserSizeDec');
+    const btnEraserSizeInc = document.getElementById('btnEraserSizeInc');
+    const eraserSizeSlider = document.getElementById('eraserSizeSlider');
+    const eraserSizePanel = document.querySelector('.eraser-size-panel');
+
+    if (eraserPopoverBtn && eraserPopover) {
+      eraserPopoverBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!canCurrentUserDraw()) {
+          showToast('🎓 Presentation Mode: Only Host can draw/erase.', 'warning');
+          return;
+        }
+        state.activeTool = 'eraser';
+        updateActiveToolUI();
+        const parent = eraserPopoverBtn.parentElement;
+        const isOpen = parent.classList.contains('open');
+        dismissAllPopovers();
+        if (!isOpen) {
+          parent.classList.add('open');
+          syncEraserSizeUI();
+        }
+        sound.playClick();
+      });
+
+      if (eraserSizePanel) {
+        eraserSizePanel.addEventListener('click', (e) => e.stopPropagation());
+      }
+
+      if (eraserSizeSlider) {
+        eraserSizeSlider.addEventListener('input', (e) => {
+          const newSize = parseInt(e.target.value, 10);
+          setEraserSize(newSize);
+        });
+      }
+
+      if (btnEraserSizeDec) {
+        btnEraserSizeDec.addEventListener('click', (e) => {
+          e.stopPropagation();
+          setEraserSize(state.activeEraserSize - 2);
+          sound.playClick();
+        });
+      }
+
+      if (btnEraserSizeInc) {
+        btnEraserSizeInc.addEventListener('click', (e) => {
+          e.stopPropagation();
+          setEraserSize(state.activeEraserSize + 2);
+          sound.playClick();
+        });
+      }
+
+      eraserPopover.querySelectorAll('.eraser-preset-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const size = parseInt(btn.dataset.size, 10);
+          setEraserSize(size);
+          sound.playClick();
+        });
+      });
+    }
+
     shapePopoverBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (!canCurrentUserDraw()) {
@@ -3234,7 +4462,7 @@
       sound.playClick();
     });
 
-    shapesPopover.querySelectorAll('.popover-item').forEach((item) => {
+    shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((item) => {
       item.addEventListener('click', (e) => {
         e.stopPropagation();
         if (!canCurrentUserDraw()) {
@@ -3243,9 +4471,10 @@
         }
         const tool = item.dataset.tool;
         state.activeTool = tool;
-        shapesPopover.querySelectorAll('.popover-item').forEach((i) => i.classList.remove('active'));
+        shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((i) => i.classList.remove('active'));
         item.classList.add('active');
-        activeShapeIcon.innerHTML = item.querySelector('svg').outerHTML;
+        const svg = item.querySelector('svg');
+        if (svg) activeShapeIcon.innerHTML = svg.outerHTML;
         shapePopoverBtn.dataset.tool = tool;
         updateActiveToolUI();
         dismissAllPopovers();
@@ -3262,13 +4491,118 @@
       sound.playClick();
     });
 
-    colorPopover.querySelectorAll('.color-choice').forEach((btn) => {
+    const slot1Btn = document.getElementById('slotColor1');
+    const slot2Btn = document.getElementById('slotColor2');
+    const btnCustomColor = document.getElementById('btnCustomColor');
+    const customColorInput = document.getElementById('customColorInput');
+
+    if (slot1Btn) {
+      slot1Btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.activeColorSlot = 'color1';
+        syncColorPopoverUI();
+        sound.playClick();
+      });
+    }
+
+    if (slot2Btn) {
+      slot2Btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.activeColorSlot = 'color2';
+        syncColorPopoverUI();
+        sound.playClick();
+      });
+    }
+
+    if (customColorInput) {
+      const updateCustomInputValue = () => {
+        const cur = (state.activeColorSlot === 'color1' ? state.activeColor : state.activeFillColor) || '#ED1C24';
+        if (typeof cur === 'string' && cur.startsWith('#') && cur.length === 7) {
+          customColorInput.value = cur;
+        }
+      };
+
+      customColorInput.addEventListener('pointerdown', updateCustomInputValue);
+      customColorInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+        updateCustomInputValue();
+      });
+
+      customColorInput.addEventListener('input', (e) => {
+        const picked = e.target.value;
+        if (state.activeColorSlot === 'color1') {
+          state.activeColor = picked;
+          if (state.selectedElementId && canCurrentUserDraw()) {
+            const el = state.elements.find((item) => item.id === state.selectedElementId);
+            if (el) {
+              el.color = state.activeColor;
+              redrawBoard();
+              socket.emit('element:update', el);
+            }
+          }
+        } else {
+          state.activeFillColor = picked;
+          if (state.activeFillStyle === 'none') state.activeFillStyle = 'solid';
+          if (state.selectedElementId && canCurrentUserDraw()) {
+            const el = state.elements.find((item) => item.id === state.selectedElementId);
+            if (el && ALL_2D_SHAPES.includes(el.type)) {
+              el.fillColor = state.activeFillColor;
+              if (el.fillStyle === 'none') el.fillStyle = 'solid';
+              redrawBoard();
+              socket.emit('element:update', el);
+            }
+          }
+        }
+        syncColorPopoverUI();
+      });
+    }
+
+    colorPopover.querySelectorAll('.ms-color-dot').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        state.activeColor = btn.dataset.color;
-        activeColorDot.style.backgroundColor = state.activeColor;
-        colorPopover.querySelectorAll('.color-choice').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
+        const selectedColor = btn.dataset.color;
+        if (state.activeColorSlot === 'color1') {
+          state.activeColor = selectedColor;
+          if (state.selectedElementId && canCurrentUserDraw()) {
+            const el = state.elements.find((item) => item.id === state.selectedElementId);
+            if (el) {
+              el.color = state.activeColor;
+              redrawBoard();
+              socket.emit('element:update', el);
+            }
+          }
+        } else {
+          state.activeFillColor = selectedColor;
+          if (state.activeFillStyle === 'none') state.activeFillStyle = 'solid';
+          if (state.selectedElementId && canCurrentUserDraw()) {
+            const el = state.elements.find((item) => item.id === state.selectedElementId);
+            if (el && ALL_2D_SHAPES.includes(el.type)) {
+              el.fillColor = state.activeFillColor;
+              if (el.fillStyle === 'none') el.fillStyle = 'solid';
+              redrawBoard();
+              socket.emit('element:update', el);
+            }
+          }
+        }
+        syncColorPopoverUI();
+        sound.playClick();
+      });
+    });
+
+    colorPopover.querySelectorAll('.fill-style-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.activeFillStyle = btn.dataset.fill;
+        syncColorPopoverUI();
+        if (state.selectedElementId && canCurrentUserDraw()) {
+          const el = state.elements.find((item) => item.id === state.selectedElementId);
+          if (el && ALL_2D_SHAPES.includes(el.type)) {
+            el.fillStyle = state.activeFillStyle;
+            if (state.activeFillStyle !== 'none' && !el.fillColor) el.fillColor = state.activeFillColor;
+            redrawBoard();
+            socket.emit('element:update', el);
+          }
+        }
         sound.playClick();
       });
     });
@@ -3277,40 +4611,638 @@
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         state.activeWidth = parseInt(btn.dataset.width, 10);
-        colorPopover.querySelectorAll('.width-btn').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
+        syncColorPopoverUI();
+        if (state.selectedElementId && canCurrentUserDraw()) {
+          const el = state.elements.find((item) => item.id === state.selectedElementId);
+          if (el) {
+            el.width = state.activeWidth;
+            redrawBoard();
+            socket.emit('element:update', el);
+          }
+        }
         sound.playClick();
       });
     });
 
-    reactionPopoverBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const parent = reactionPopoverBtn.parentElement;
-      const isOpen = parent.classList.contains('open');
-      dismissAllPopovers();
-      if (!isOpen) parent.classList.add('open');
-      sound.playClick();
-    });
+    // --- Rich Emoji Reaction Catalog & Bubble Popover Engine ---
+    EMOJI_CATEGORIES = [
+      {
+        id: 'smileys',
+        name: 'Smileys & Emotion',
+        icon: '😀',
+        emojis: [
+          { char: '😀', keywords: 'grinning face happy smile joy cheer' },
+          { char: '😃', keywords: 'smiley face happy cheer open mouth' },
+          { char: '😄', keywords: 'smile happy joy eyes smiling laughing' },
+          { char: '😁', keywords: 'beam grin smiling teeth happy' },
+          { char: '😆', keywords: 'laughing squint laughing haha lol' },
+          { char: '😅', keywords: 'sweat smile relief phew nervous' },
+          { char: '🤣', keywords: 'rofl rolling on floor laughing lol haha comedy' },
+          { char: '😂', keywords: 'joy tears laugh haha crying laughter' },
+          { char: '🙂', keywords: 'slightly smiling smile happy polite' },
+          { char: '🙃', keywords: 'upside down silly sarcasm playful irony' },
+          { char: '😉', keywords: 'wink playful secret flirt wink' },
+          { char: '😊', keywords: 'blush smile happy cute wholesome warm' },
+          { char: '😇', keywords: 'innocent angel halo holy pure goodness' },
+          { char: '🥰', keywords: 'smiling hearts love crush sweet adored' },
+          { char: '😍', keywords: 'heart eyes love admire cute passion lovely' },
+          { char: '🤩', keywords: 'star struck excited amazed awesome wow magic' },
+          { char: '😘', keywords: 'kiss blowing kiss love affection romance' },
+          { char: '😗', keywords: 'kissing whistling duck face polite' },
+          { char: '😋', keywords: 'yum delicious tongue tasty food yummy lick' },
+          { char: '😛', keywords: 'tongue sticking out cheeky silly playful' },
+          { char: '😜', keywords: 'crazy wink tongue funny playful cheeky' },
+          { char: '🤪', keywords: 'zany goofy crazy silly wacky wild' },
+          { char: '😝', keywords: 'squint tongue silly playful haha funny' },
+          { char: '🤑', keywords: 'money face rich cash dollar wealthy jackpot' },
+          { char: '🤗', keywords: 'hugging hug comfort embrace warm support' },
+          { char: '🤭', keywords: 'hand over mouth giggle oops secret blush' },
+          { char: '🤫', keywords: 'shh quiet secret hush silence mute' },
+          { char: '🤔', keywords: 'thinking ponder hmm consider wonder evaluate' },
+          { char: '🤐', keywords: 'zipper mouth shut up quiet sealed secret' },
+          { char: '🤨', keywords: 'raised eyebrow suspicious skeptical doubt suspect' },
+          { char: '😐', keywords: 'neutral blank emotionless meh whatever' },
+          { char: '😑', keywords: 'expressionless poker face no comment deadpan' },
+          { char: '😶', keywords: 'silent no mouth quiet speechlessness speechless' },
+          { char: '😏', keywords: 'smirk sassy smug cunning sly flirting' },
+          { char: '😒', keywords: 'unamused displeased side eye meh bored annoyed' },
+          { char: '🙄', keywords: 'rolling eyes eye roll whatever annoyed bored' },
+          { char: '😬', keywords: 'grimacing awkward yikes cringe tense tense' },
+          { char: '🤥', keywords: 'lying pinocchio liar fake nose deception' },
+          { char: '😌', keywords: 'relieved peaceful calm zen relaxed chill' },
+          { char: '😔', keywords: 'pensive sad reflective down regret sorrow' },
+          { char: '😪', keywords: 'sleepy tired snot tear exhausted' },
+          { char: '🤤', keywords: 'drooling hungry craving desire tasty' },
+          { char: '😴', keywords: 'sleeping sleep zzz tired night bed' },
+          { char: '😷', keywords: 'mask sick virus protection doctor hospital' },
+          { char: '🤒', keywords: 'thermometer sick fever ill unwell medical' },
+          { char: '🤕', keywords: 'bandage hurt injured head injury pain' },
+          { char: '🤢', keywords: 'nauseated sick disgust gross barf puking' },
+          { char: '🤮', keywords: 'vomiting puke throw up gross sick vomit' },
+          { char: '🤧', keywords: 'sneezing tissue allergy cold sick flu' },
+          { char: '🥵', keywords: 'hot heat sweating flushed exhausted warm spicy' },
+          { char: '🥶', keywords: 'cold freezing ice chilly frost shivering freezing' },
+          { char: '🥴', keywords: 'woozy dizzy drunk intoxicated tipsy weird' },
+          { char: '😵', keywords: 'dizzy dead knocked out shocked stunned' },
+          { char: '🤯', keywords: 'exploding head mind blown shocked wow boom' },
+          { char: '🤠', keywords: 'cowboy hat yeehaw western sheriff texas' },
+          { char: '🥳', keywords: 'party horn celebrate confetti birthday yay' },
+          { char: '😎', keywords: 'cool sunglasses chill boss rad stylish awesome' },
+          { char: '🤓', keywords: 'nerd glasses geek smart code programmer' },
+          { char: '🧐', keywords: 'monocle classy inspecting investigate examine smart' },
+          { char: '😕', keywords: 'confused huh puzzled what lost question' },
+          { char: '😟', keywords: 'worried concerned anxious nervous fear worry' },
+          { char: '🙁', keywords: 'slightly frowning unhappy sad displeased' },
+          { char: '😮', keywords: 'open mouth surprised gasp oh wow omfg' },
+          { char: '😯', keywords: 'surprised stunned hush astonished whoa' },
+          { char: '😲', keywords: 'astonished shocked amazed disbelief omg' },
+          { char: '😳', keywords: 'flushed blush embarrassed wide eyes caught' },
+          { char: '🥺', keywords: 'pleading puppy eyes beg please please cute tender' },
+          { char: '😦', keywords: 'frowning open mouth dismay oh no shock' },
+          { char: '😧', keywords: 'anguished stunned horrified sad pain fear' },
+          { char: '😨', keywords: 'fearful scared afraid anxiety nervous dread' },
+          { char: '😰', keywords: 'anxious blue sweat stress terrified panic' },
+          { char: '😥', keywords: 'sad relieved sweat teardrop worried phew' },
+          { char: '😢', keywords: 'crying tear sad weeping distress pain' },
+          { char: '😭', keywords: 'sob loud crying streaming tears bawling heartbroken' },
+          { char: '😱', keywords: 'screaming terror ghost fright scary scream horror' },
+          { char: '😖', keywords: 'confounded frustration quivering struggle tense' },
+          { char: '😣', keywords: 'persevering struggling hurt painful resist' },
+          { char: '😞', keywords: 'disappointed sad sorrow gloom downcast' },
+          { char: '😓', keywords: 'downcast sweat work hard exhausted stress hard' },
+          { char: '😩', keywords: 'weary tired frustrated whine exhausted despair' },
+          { char: '😫', keywords: 'tired yawning done exhausted stressed done' },
+          { char: '🥱', keywords: 'yawn bored sleepy tired waking up boring' },
+          { char: '😤', keywords: 'triumph huff proud steam angry determined rage' },
+          { char: '😡', keywords: 'pouting rage angry red furious mad infuriated' },
+          { char: '😠', keywords: 'angry mad grumpy displeased furious moody' },
+          { char: '🤬', keywords: 'cursing symbols swear rage furious swearwords curse' },
+          { char: '😈', keywords: 'devil smiling evil horn naughty mischievous wicked' },
+          { char: '👿', keywords: 'angry devil demon furious bad villain evil' },
+          { char: '💀', keywords: 'skull dead skeleton death rip dying laugh humor' },
+          { char: '☠️', keywords: 'skull crossbones poison pirate danger hazard deadly' },
+          { char: '💩', keywords: 'poop crap piece of shit silly funny brown poopie' },
+          { char: '🤡', keywords: 'clown circus foolish silly joker goofy clowning' },
+          { char: '👻', keywords: 'ghost spooky halloween booo phantom spirit' },
+          { char: '👽', keywords: 'alien ufo martian space extraterrestrial sci fi' },
+          { char: '🤖', keywords: 'robot bot AI tech android futuristic machine' },
+          { char: '🎃', keywords: 'jack o lantern pumpkin halloween scary autumn' }
+        ]
+      },
+      {
+        id: 'people_gestures',
+        name: 'Gestures & Hands',
+        icon: '👋',
+        emojis: [
+          { char: '👋', keywords: 'wave waving hand hello goodbye bye hi greeting' },
+          { char: '🤚', keywords: 'raised back of hand stop high five palm' },
+          { char: '🖐️', keywords: 'hand splayed fingers palm open stop five splay' },
+          { char: '✋', keywords: 'raised hand stop high five hold on wait' },
+          { char: '🖖', keywords: 'vulcan salute live long and prosper spock star trek' },
+          { char: '👌', keywords: 'ok okay hand perfect excellent fine good agree' },
+          { char: '🤌', keywords: 'pinched fingers italian chef kiss what do you mean chef' },
+          { char: '🤏', keywords: 'pinching hand small tiny little bit pinch microscopic' },
+          { char: '✌️', keywords: 'victory peace two v sign two fingers chill' },
+          { char: '🤞', keywords: 'crossed fingers good luck hope wish praying luck' },
+          { char: '🤟', keywords: 'love you gesture rock sign metal ily affection' },
+          { char: '🤘', keywords: 'rock on heavy metal horns rock music concerts' },
+          { char: '🤙', keywords: 'call me shaka hang loose surf phone aloha' },
+          { char: '👈', keywords: 'point left back index finger direction indicator' },
+          { char: '👉', keywords: 'point right next index finger direction forward' },
+          { char: '👆', keywords: 'point up index finger top above look upward' },
+          { char: '👇', keywords: 'point down bottom below look here downward' },
+          { char: '☝️', keywords: 'point up attention one idea first wait listen' },
+          { char: '👍', keywords: 'thumbs up like agree approve good great yes vote up' },
+          { char: '👎', keywords: 'thumbs down dislike bad disapprove no vote down hate' },
+          { char: '✊', keywords: 'fist raised punch power solidarity resist strength' },
+          { char: '👊', keywords: 'oncoming fist bump punch hit blow brofist' },
+          { char: '🤛', keywords: 'left fist bump punch sideways fistbump' },
+          { char: '🤜', keywords: 'right fist bump punch sideways fistbump' },
+          { char: '👏', keywords: 'clapping hands applause cheer bravo kudos props' },
+          { char: '🙌', keywords: 'raising hands celebration praise hooray yay celebration' },
+          { char: '👐', keywords: 'open hands embrace welcome jazz hands openness' },
+          { char: '🤲', keywords: 'palms together prayer holding giving cupped donate' },
+          { char: '🤝', keywords: 'handshake deal agreement partnership shake hello partner' },
+          { char: '🙏', keywords: 'pray praying thank you please namaste high five thanks' },
+          { char: '✍️', keywords: 'writing hand pen signature draw note pencil writer' },
+          { char: '💅', keywords: 'nail polish sassy fabulous beauty care manicure nails' },
+          { char: '🤳', keywords: 'selfie photo phone camera picture mobile pose' },
+          { char: '💪', keywords: 'flexed biceps muscle strong power workout fitness gym' },
+          { char: '🧠', keywords: 'brain mind think smart intelligence memory neurology' },
+          { char: '👀', keywords: 'eyes look see glance peep observe watching drama' },
+          { char: '👁️', keywords: 'eye watch sight view look vision observer' },
+          { char: '👅', keywords: 'tongue taste lick silly cheeky flavor' },
+          { char: '👄', keywords: 'mouth lips kiss beauty lipstick red cosmetic' }
+        ]
+      },
+      {
+        id: 'animals_nature',
+        name: 'Animals & Nature',
+        icon: '🐱',
+        emojis: [
+          { char: '🐶', keywords: 'dog puppy pet canine animal cute bark woof' },
+          { char: '🐱', keywords: 'cat kitten pet feline meow kitty cute purr' },
+          { char: '🐭', keywords: 'mouse rat rodent cute squeak cheese animal' },
+          { char: '🐹', keywords: 'hamster cute rodent pet fluffy cheeks animal' },
+          { char: '🐰', keywords: 'rabbit bunny hare easter cute pet carrot hop' },
+          { char: '🦊', keywords: 'fox cunning wild red bushy orange animal foxy' },
+          { char: '🐻', keywords: 'bear grizzly teddy cute wild nature beast' },
+          { char: '🐼', keywords: 'panda bear bamboo china cute black white' },
+          { char: '🐨', keywords: 'koala australia eucalyptus marsupial cute bear' },
+          { char: '🐯', keywords: 'tiger face feline wild cat stripes predator rawr' },
+          { char: '🦁', keywords: 'lion king of jungle mane roar feline wild' },
+          { char: '🐮', keywords: 'cow face farm cattle milk moo bovine dairy' },
+          { char: '🐷', keywords: 'pig face farm pork bacon oink cute piggy' },
+          { char: '🐸', keywords: 'frog toad amphibian green ribbit lilypad pepe' },
+          { char: '🐵', keywords: 'monkey face ape primate banana jungle playful' },
+          { char: '🐔', keywords: 'chicken rooster hen bird poultry farm cluck' },
+          { char: '🐧', keywords: 'penguin antarctica arctic bird tuxedo ice waddle' },
+          { char: '🐦', keywords: 'bird bluebird tweet flying animal nature avian' },
+          { char: '🐤', keywords: 'baby chick bird yellow cute hatchling easter' },
+          { char: '🦆', keywords: 'duck mallard bird quack pond waterfowl bird' },
+          { char: '🦅', keywords: 'eagle raptor bird predator fly america majestic freedom' },
+          { char: '🦉', keywords: 'owl wise night nocturnal bird hoot wisdom' },
+          { char: '🦇', keywords: 'bat vampire nocturnal halloween cave fly batman' },
+          { char: '🐺', keywords: 'wolf wild howl canine pack predator moonlight' },
+          { char: '🐗', keywords: 'boar wild pig hog tusks forest bacon' },
+          { char: '🐴', keywords: 'horse face pony stallion farm ride gallop neigh' },
+          { char: '🦄', keywords: 'unicorn magic mythical fantasy rainbow horse horn' },
+          { char: '🐝', keywords: 'bee honeybee bumblebee insect honey buzz sting' },
+          { char: '🐛', keywords: 'bug caterpillar insect larva green crawl nature' },
+          { char: '🦋', keywords: 'butterfly insect wings colorful beauty flutter' },
+          { char: '🐌', keywords: 'snail shell slow slime gastropod nature' },
+          { char: '🐞', keywords: 'ladybug beetle bug spotted insect lucky ladybird' },
+          { char: '🐜', keywords: 'ant bug insect worker colony hill tiny strong' },
+          { char: '🕷️', keywords: 'spider web arachnid creepy halloween spooky eight' },
+          { char: '🦂', keywords: 'scorpion arachnid sting desert venom zodiac venomous' },
+          { char: '🐢', keywords: 'turtle tortoise reptile shell slow marine sea' },
+          { char: '🐍', keywords: 'snake serpent reptile slither venom hiss snakey' },
+          { char: '🦎', keywords: 'lizard gecko reptile amphibian camouflage dragon' },
+          { char: '🦖', keywords: 't-rex tyrannosaurus rex dinosaur jurassic extinct reptile' },
+          { char: '🦕', keywords: 'sauropod brontosaurus dinosaur herbivore jurassic dino' },
+          { char: '🐙', keywords: 'octopus tentacles sea ocean marine kraken calamari' },
+          { char: '🦑', keywords: 'squid ocean sea marine tentacles calamari kraken' },
+          { char: '🦐', keywords: 'shrimp prawn seafood crustacean ocean meal' },
+          { char: '🦞', keywords: 'lobster seafood crustacean red ocean marine claws' },
+          { char: '🦀', keywords: 'crab seafood claws beach ocean crustacean cancer' },
+          { char: '🐡', keywords: 'blowfish pufferfish spiky ocean poisonous fugu' },
+          { char: '🐠', keywords: 'tropical fish ocean aquarium colorful nemo coral' },
+          { char: '🐟', keywords: 'fish sea ocean marine swimming animal food' },
+          { char: '🐬', keywords: 'dolphin marine ocean mammal smart swimming jump' },
+          { char: '🐳', keywords: 'whale ocean sea spout marine giant swimming blowhole' },
+          { char: '🦈', keywords: 'shark predator jaws teeth ocean ocean fish sharp' },
+          { char: '🐊', keywords: 'crocodile alligator reptile swamp jaws swamp' },
+          { char: '🌸', keywords: 'cherry blossom flower floral sakura spring pink flora' },
+          { char: '🌹', keywords: 'rose red flower romantic love valentine floral petals' },
+          { char: '🌺', keywords: 'hibiscus flower tropical floral hawaii exotic aloha' },
+          { char: '🌻', keywords: 'sunflower yellow sunny summer flora bright sun' },
+          { char: '🌼', keywords: 'blossom flower yellow daisy spring floral bloom' },
+          { char: '🌷', keywords: 'tulip flower spring flora holland colorful bloom' },
+          { char: '🌱', keywords: 'seedling sprout plant grow nature green spring plant' },
+          { char: '🌲', keywords: 'evergreen tree pine forest nature cedar woods xmas' },
+          { char: '🌳', keywords: 'deciduous tree woods park nature green foliage park' },
+          { char: '🌴', keywords: 'palm tree tropical beach summer island vacation resort' },
+          { char: '🌵', keywords: 'cactus desert succulent spiky dry plant western' },
+          { char: '🍀', keywords: 'four leaf clover luck lucky irish saint patrick shamrock' },
+          { char: '🍁', keywords: 'maple leaf autumn fall canada foliage orange leaves' },
+          { char: '🍂', keywords: 'fallen leaf autumn fall leaves dry gold breeze' },
+          { char: '🍃', keywords: 'leaf fluttering wind breeze green eco nature wind' }
+        ]
+      },
+      {
+        id: 'food_drink',
+        name: 'Food & Drink',
+        icon: '🍕',
+        emojis: [
+          { char: '🍏', keywords: 'green apple fruit sour granny smith healthy salad' },
+          { char: '🍎', keywords: 'red apple fruit sweet fresh apple snack teacher' },
+          { char: '🍐', keywords: 'pear fruit sweet green snack fresh organic' },
+          { char: '🍊', keywords: 'orange tangerine citrus vitamin c fruit juice' },
+          { char: '🍋', keywords: 'lemon citrus sour yellow fruit lemonade fresh' },
+          { char: '🍌', keywords: 'banana fruit yellow potassium peel monkey smoothie' },
+          { char: '🍉', keywords: 'watermelon fruit summer sweet refreshing slice melon' },
+          { char: '🍇', keywords: 'grapes wine fruit purple bunch snack vineyard' },
+          { char: '🍓', keywords: 'strawberry berry fruit sweet red berry dessert' },
+          { char: '🍒', keywords: 'cherries cherry fruit red sweet dessert pair pie' },
+          { char: '🍑', keywords: 'peach fruit juicy sweet fuzzy butt booty fruit' },
+          { char: '🥭', keywords: 'mango tropical fruit sweet delicious juicy mangoes' },
+          { char: '🍍', keywords: 'pineapple tropical fruit sweet hawaii piña fruit' },
+          { char: '🥥', keywords: 'coconut tropical palm pina colada exotic water' },
+          { char: '🥝', keywords: 'kiwi fruit fuzzy green new zealand slice healthy' },
+          { char: '🥑', keywords: 'avocado guacamole healthy toast green fat keto' },
+          { char: '🍆', keywords: 'eggplant aubergine vegetable purple plant emoji' },
+          { char: '🥕', keywords: 'carrot vegetable orange healthy rabbit salad snack' },
+          { char: '🌽', keywords: 'corn on the cob maize vegetable sweetcorn yellow pop' },
+          { char: '🌶️', keywords: 'hot pepper chili spicy seasoning red heat salsa' },
+          { char: '🥐', keywords: 'croissant bakery pastry bread french breakfast bakery' },
+          { char: '🍞', keywords: 'bread loaf bakery slice toast wheat breakfast' },
+          { char: '🥖', keywords: 'baguette french bread bakery crusty loaf paris' },
+          { char: '🥨', keywords: 'pretzel snack bakery salted twisted bavarian snack' },
+          { char: '🧀', keywords: 'cheese wedge cheddar swiss dairy yellow snack mouse' },
+          { char: '🥚', keywords: 'egg breakfast protein food cooking ingredient raw' },
+          { char: '🍳', keywords: 'cooking fried egg breakfast pan skillet yolk breakfast' },
+          { char: '🥞', keywords: 'pancakes hotcakes breakfast syrup butter stack brunch' },
+          { char: '🧇', keywords: 'waffle breakfast belgian syrup grid iron brunch' },
+          { char: '🥓', keywords: 'bacon pork breakfast crispy strips meat sizzling' },
+          { char: '🥩', keywords: 'steak cut of meat beef ribeye raw dinner grill' },
+          { char: '🍗', keywords: 'poultry leg drumstick chicken fried turkey meat' },
+          { char: '🍖', keywords: 'meat on bone roast dinosaur anime shank feast' },
+          { char: '🌭', keywords: 'hot dog frankfurter sausage mustard bun snack fastfood' },
+          { char: '🍔', keywords: 'hamburger burger cheeseburger fast food beef bun meal' },
+          { char: '🍟', keywords: 'french fries chips fast food potato crispy salt snack' },
+          { char: '🍕', keywords: 'pizza slice pepperoni cheese italian pie fast food delicious' },
+          { char: '🥪', keywords: 'sandwich lunch sub club deli bread meal sandwich' },
+          { char: '🌮', keywords: 'taco mexican food shell tortilla crunchy fiesta taco' },
+          { char: '🌯', keywords: 'burrito mexican wrap tortilla wrap roll mexican' },
+          { char: '🥗', keywords: 'green salad healthy vegetables lettuce bowl diet fresh' },
+          { char: '🍝', keywords: 'spaghetti pasta tomato sauce italian noodles bowl dinner' },
+          { char: '🍜', keywords: 'ramen noodles steaming bowl asian soup chopsticks broth' },
+          { char: '🍲', keywords: 'pot of food stew soup hotpot hearty dinner meal' },
+          { char: '🍛', keywords: 'curry rice indian japanese spicy bowl meal' },
+          { char: '🍣', keywords: 'sushi nigiri sashimi japanese seafood fish raw rolls' },
+          { char: '🍱', keywords: 'bento box lunch japanese meal compartmentalized' },
+          { char: '🥟', keywords: 'dumpling potsticker gyoza dim sum asian momo' },
+          { char: '🍤', keywords: 'fried shrimp tempura prawn seafood crispy tempura' },
+          { char: '🍙', keywords: 'rice ball onigiri japanese seaweed snack rice' },
+          { char: '🍚', keywords: 'cooked rice bowl steamed white grain jasmine rice' },
+          { char: '🍦', keywords: 'soft ice cream cone vanilla swirl dessert summer cone' },
+          { char: '🍧', keywords: 'shaved ice sweet dessert syrup rainbow summer kakigori' },
+          { char: '🍨', keywords: 'ice cream scoop dessert bowl sundae sweet gelato' },
+          { char: '🍩', keywords: 'doughnut donut sweet pastry glaze sprinkle frosting treat' },
+          { char: '🍪', keywords: 'cookie chocolate chip sweet biscuit bakery snack cookies' },
+          { char: '🎂', keywords: 'birthday cake celebration candles party dessert sweet' },
+          { char: '🍰', keywords: 'shortcake cake slice strawberry bakery dessert sweet' },
+          { char: '🧁', keywords: 'cupcake muffin dessert bakery frosting sweet treat' },
+          { char: '🥧', keywords: 'pie pastry fruit dessert bakery slice thanksgiving apple' },
+          { char: '🍫', keywords: 'chocolate bar sweet cocoa candy treat milk dark' },
+          { char: '🍬', keywords: 'candy sweet sugar wrapper confectionery treat drops' },
+          { char: '🍭', keywords: 'lollipop candy sweet spiral sucker treat candy' },
+          { char: '🍮', keywords: 'custard flan pudding dessert caramel sweet custard' },
+          { char: '🍯', keywords: 'honey pot sweet beehive bear amber syrup honey' },
+          { char: '🍿', keywords: 'popcorn cinema movie snack butter corn salted films' },
+          { char: '☕', keywords: 'coffee cup hot cafe espresso tea morning caffeine latte' },
+          { char: '🫖', keywords: 'teapot tea pot brewing hot beverage english chai' },
+          { char: '🍵', keywords: 'teacup green tea matcha asian hot beverage zen' },
+          { char: '🧃', keywords: 'juice box drink straw beverage apple fruit juice' },
+          { char: '🧋', keywords: 'boba bubble tea milk tapioca drink pearl straw tea' },
+          { char: '🥤', keywords: 'cup with straw soda soft drink beverage milkshake drink' },
+          { char: '🍺', keywords: 'beer mug alcohol bar pub drink foam lager brew' },
+          { char: '🍻', keywords: 'clinking beer mugs cheers toast pub party alcohol drinks' },
+          { char: '🍷', keywords: 'wine glass red alcohol vino vineyard dinner cheers' },
+          { char: '🍸', keywords: 'cocktail martini olive alcohol bar lounge beverage' },
+          { char: '🍹', keywords: 'tropical drink umbrella cocktail beach summer alcohol party' },
+          { char: '🍾', keywords: 'champagne bottle popping cork celebration cheers alcohol new year' }
+        ]
+      },
+      {
+        id: 'objects_activities',
+        name: 'Activities & Objects',
+        icon: '🎯',
+        emojis: [
+          { char: '⚽', keywords: 'soccer ball football sport fifa goal kick match ball' },
+          { char: '🏀', keywords: 'basketball sport nba hoop slam dunk game court' },
+          { char: '🏈', keywords: 'american football nfl sport ball touchdown super bowl' },
+          { char: '⚾', keywords: 'baseball sport mlb bat home run pitch ball game' },
+          { char: '🎾', keywords: 'tennis ball racket sport match court grand slam' },
+          { char: '🏐', keywords: 'volleyball beach sport spike court net game beach' },
+          { char: '🎱', keywords: 'pool 8 ball billiards game cue snooker black 8' },
+          { char: '🏓', keywords: 'ping pong table tennis paddle sport game match ping' },
+          { char: '🏸', keywords: 'badminton shuttlecock racket sport net birdie' },
+          { char: '🥊', keywords: 'boxing glove punch sport fight match ring knockout box' },
+          { char: '🥋', keywords: 'martial arts uniform karate judo taekwondo black belt dojo' },
+          { char: '🛹', keywords: 'skateboard skate board sport trick street wheels ride' },
+          { char: '🏆', keywords: 'trophy champion win first award gold victor cup victory' },
+          { char: '🥇', keywords: '1st place medal gold medal champion first winner gold' },
+          { char: '🥈', keywords: '2nd place medal silver second award runner up silver' },
+          { char: '🥉', keywords: '3rd place medal bronze third prize award podium bronze' },
+          { char: '🎯', keywords: 'direct hit bullseye dart target accuracy game goal spot' },
+          { char: '🎮', keywords: 'video game controller joystick console gaming play ps5 xbox' },
+          { char: '🎲', keywords: 'game die dice roll gambling board game chance luck roll' },
+          { char: '🧩', keywords: 'puzzle piece jigsaw solve problem brain mystery piece' },
+          { char: '🎨', keywords: 'artist palette painting draw color design brush canvas art' },
+          { char: '🎬', keywords: 'clapper board film movie cinema hollywood director action' },
+          { char: '🎤', keywords: 'microphone mic audio sing speech podcast karaoke vocal' },
+          { char: '🎧', keywords: 'headphones music sound audio listen dj beats audio' },
+          { char: '🎼', keywords: 'musical score music sheet notes treble clef harmony song' },
+          { char: '🎹', keywords: 'musical keyboard piano keys synth music play melody keys' },
+          { char: '🎸', keywords: 'guitar acoustic rock music instrument strings play solo' },
+          { char: '🎺', keywords: 'trumpet brass jazz horn music instrument band solo' },
+          { char: '🚀', keywords: 'rocket launch spaceship space blast off startup speed moon' },
+          { char: '🛸', keywords: 'flying saucer ufo alien extraterrestrial sci-fi space uap' },
+          { char: '🚗', keywords: 'car automobile vehicle drive road red transportation drive' },
+          { char: '🏎️', keywords: 'racing car formula 1 fast speed race track motorsport f1' },
+          { char: '🚲', keywords: 'bicycle bike ride cycling pedal transportation eco cycle' },
+          { char: '✈️', keywords: 'airplane flight airport travel fly holiday vacation plane' },
+          { char: '⛵', keywords: 'sailboat yacht boat sailing ocean sea nautical wind ship' },
+          { char: '💡', keywords: 'light bulb idea bright brainstorm innovation light electric eureka' },
+          { char: '💻', keywords: 'laptop computer PC macbook tech code developer screen software' },
+          { char: '📱', keywords: 'mobile phone smartphone iphone tech cellular app telephone' },
+          { char: '⌚', keywords: 'watch wristwatch time smart clock accessory apple' },
+          { char: '📷', keywords: 'camera photo picture snapshot photography lens capture picture' },
+          { char: '🔍', keywords: 'magnifying glass search find inspect lookup discover investigate query' },
+          { char: '💎', keywords: 'gem stone diamond crystal jewel precious rich valuable sparkle' },
+          { char: '🔮', keywords: 'crystal ball magic fortune teller future psychic prophecy magic' },
+          { char: '🪄', keywords: 'magic wand wizard sorcery cast spell fairy sparkle wand' },
+          { char: '🎁', keywords: 'wrapped gift present birthday christmas surprise box bow present' },
+          { char: '🎈', keywords: 'balloon red party celebration birthday float inflate party' },
+          { char: '🎉', keywords: 'party popper confetti celebration birthday surprise hooray tada' },
+          { char: '🔥', keywords: 'fire flame lit hot burning campfire inferno energy burn' },
+          { char: '⚡', keywords: 'high voltage lightning bolt power energy electricity shock fast' }
+        ]
+      },
+      {
+        id: 'symbols_hearts',
+        name: 'Symbols & Hearts',
+        icon: '💖',
+        emojis: [
+          { char: '❤️', keywords: 'red heart love like romance partner valentine affection heart' },
+          { char: '🧡', keywords: 'orange heart warm care autumn friendship' },
+          { char: '💛', keywords: 'yellow heart friendship happiness sunshine gold warmth' },
+          { char: '💚', keywords: 'green heart nature eco healthy organic jealous envy' },
+          { char: '💙', keywords: 'blue heart trust peace ocean sky loyalty cool' },
+          { char: '💜', keywords: 'purple heart magic royalty glamour BTS affection' },
+          { char: '🖤', keywords: 'black heart dark emo gothic mourning elegance soul' },
+          { char: '🤍', keywords: 'white heart pure peace angel innocence clean' },
+          { char: '🤎', keywords: 'brown heart earth chocolate warmth solidarity' },
+          { char: '💔', keywords: 'broken heart heartbreak break up sad grief sorrow loss pain' },
+          { char: '❣️', keywords: 'heart exclamation punctuation love emphasis passion' },
+          { char: '💕', keywords: 'two hearts floating love affection pair couple romantic' },
+          { char: '💞', keywords: 'revolving hearts orbiting love romance swirling hearts' },
+          { char: '💓', keywords: 'beating heart pulsing vibrating heartbeat excitement pulse' },
+          { char: '💗', keywords: 'growing heart expanding love blush blooming romance pulse' },
+          { char: '💖', keywords: 'sparkling heart shiny glitter sparkle magic love special sparkle' },
+          { char: '💘', keywords: 'heart with arrow cupid struck romance love arrow cupid' },
+          { char: '💝', keywords: 'heart with ribbon gift love box present valentine gift' },
+          { char: '✨', keywords: 'sparkles sparkle magical shine clean night glow glitter shine' },
+          { char: '⭐', keywords: 'star yellow rating favorite bookmark night celestial star' },
+          { char: '🌟', keywords: 'glowing star sparkle shiny golden radiance shine glow' },
+          { char: '💫', keywords: 'dizzy star shooting streak trail motion loop magical streak' },
+          { char: '💥', keywords: 'collision boom explosion bang pow blast comic hit pow' },
+          { char: '💯', keywords: 'hundred points score perfect 100 accurate test true real keep' },
+          { char: '💢', keywords: 'anger symbol vein popping anime manga frustrated furious vein' },
+          { char: '💤', keywords: 'zzz sleep sleeping tired snooze snore dreams bedtime sleep' },
+          { char: '✅', keywords: 'check mark button tick approved correct done success pass ok' },
+          { char: '❌', keywords: 'cross mark x wrong false no error cancel reject bad' },
+          { char: '❓', keywords: 'question mark red help ask puzzle doubt confusion mark' },
+          { char: '❗', keywords: 'exclamation mark red alert caution warning notice info bang' },
+          { char: '⚠️', keywords: 'warning sign hazard caution triangle danger attention caution' },
+          { char: '🛑', keywords: 'stop sign octagonal red traffic halt danger barrier stop' },
+          { char: '🚫', keywords: 'prohibited no entry forbidden banned restricted cancelled cancel' },
+          { char: '🌈', keywords: 'rainbow colorful weather pride hope sky spectrum arcs pride' },
+          { char: '☀️', keywords: 'sun sunny day sunshine warm bright weather daylight summer' },
+          { char: '🌙', keywords: 'crescent moon night lunar evening sky sleep dream night' },
+          { char: '☁️', keywords: 'cloud weather overcast sky fluffy overcast gray white sky' },
+          { char: '❄️', keywords: 'snowflake winter cold snow freeze frost ice crystal cold' },
+          { char: '🔔', keywords: 'bell notification chime reminder alert sound ring notify' },
+          { char: '🎵', keywords: 'musical note sound melody song tune music audio note' },
+          { char: '🎶', keywords: 'musical notes singing harmony melody song sound tune music' }
+        ]
+      }
+    ];
 
-    reactionPopover.querySelectorAll('.reaction-item').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        triggerReaction(btn.dataset.emoji);
-        dismissAllPopovers();
+    const reactionPopoverContainer = document.getElementById('reactionPopoverContainer') || (reactionPopoverBtn ? reactionPopoverBtn.parentElement : null);
+    const reactionScrollArea = document.getElementById('reactionScrollArea');
+    const reactionSearchInput = document.getElementById('reactionSearchInput');
+    const reactionSearchClear = document.getElementById('reactionSearchClear');
+    const emojiCountBadge = document.getElementById('emojiCountBadge');
+    const reactionCategoryTabs = document.getElementById('reactionCategoryTabs');
+    const reactionQuickPills = document.getElementById('reactionQuickPills');
+
+    let activeReactionCategory = 'all';
+    let currentEmojiSearch = '';
+    let reactionHoverCloseTimer = null;
+
+    function renderEmojiCatalog(filterCategory = 'all', searchQuery = '') {
+      if (!reactionScrollArea) return;
+      reactionScrollArea.innerHTML = '';
+
+      const query = (searchQuery || '').trim().toLowerCase();
+      let totalCount = 0;
+
+      EMOJI_CATEGORIES.forEach((cat) => {
+        if (filterCategory !== 'all' && cat.id !== filterCategory && !query) {
+          return;
+        }
+
+        const filteredEmojis = cat.emojis.filter((item) => {
+          if (!query) return true;
+          return item.char.includes(query) || (item.keywords && item.keywords.toLowerCase().includes(query)) || cat.name.toLowerCase().includes(query);
+        });
+
+        if (filteredEmojis.length === 0) return;
+
+        totalCount += filteredEmojis.length;
+
+        const section = document.createElement('div');
+        section.className = 'reaction-group-section';
+
+        const title = document.createElement('div');
+        title.className = 'reaction-group-title';
+        title.textContent = `${cat.icon} ${cat.name}`;
+        section.appendChild(title);
+
+        const grid = document.createElement('div');
+        grid.className = 'reaction-grid-layout';
+
+        filteredEmojis.forEach((emojiItem) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'reaction-item';
+          btn.dataset.emoji = emojiItem.char;
+          btn.title = emojiItem.char;
+          btn.textContent = emojiItem.char;
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            triggerReaction(emojiItem.char);
+            btn.style.transform = 'scale(1.4)';
+            setTimeout(() => { btn.style.transform = ''; }, 200);
+          });
+          grid.appendChild(btn);
+        });
+
+        section.appendChild(grid);
+        reactionScrollArea.appendChild(section);
       });
-    });
 
-    startCursorChatBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dismissAllPopovers();
-      openCursorChat();
+      if (totalCount === 0) {
+        const noRes = document.createElement('div');
+        noRes.className = 'reaction-no-results';
+        noRes.textContent = `🔍 No emojis found for "${query}"`;
+        reactionScrollArea.appendChild(noRes);
+      }
+
+      if (emojiCountBadge) {
+        emojiCountBadge.textContent = `${totalCount} emojis`;
+      }
+    }
+
+    // Populate Initial Emoji Grid
+    renderEmojiCatalog('all', '');
+
+    // Setup Quick Reaction Pills in Header
+    if (reactionQuickPills) {
+      reactionQuickPills.querySelectorAll('.reaction-item').forEach((item) => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const emoji = item.dataset.emoji;
+          if (emoji) {
+            triggerReaction(emoji);
+            item.style.transform = 'scale(1.4)';
+            setTimeout(() => { item.style.transform = ''; }, 200);
+          }
+        });
+      });
+    }
+
+    // Category Tabs Switching
+    if (reactionCategoryTabs) {
+      reactionCategoryTabs.querySelectorAll('.reaction-cat-tab').forEach((tab) => {
+        tab.addEventListener('click', (e) => {
+          e.stopPropagation();
+          reactionCategoryTabs.querySelectorAll('.reaction-cat-tab').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+          activeReactionCategory = tab.dataset.category || 'all';
+          if (reactionSearchInput) reactionSearchInput.value = '';
+          currentEmojiSearch = '';
+          if (reactionSearchClear) reactionSearchClear.classList.remove('visible');
+          renderEmojiCatalog(activeReactionCategory, '');
+          if (reactionScrollArea) reactionScrollArea.scrollTop = 0;
+          sound.playClick();
+        });
+      });
+    }
+
+    // Emoji Search Filter
+    if (reactionSearchInput) {
+      reactionSearchInput.addEventListener('input', (e) => {
+        currentEmojiSearch = e.target.value;
+        if (reactionSearchClear) {
+          reactionSearchClear.classList.toggle('visible', currentEmojiSearch.length > 0);
+        }
+        renderEmojiCatalog(activeReactionCategory, currentEmojiSearch);
+      });
+      reactionSearchInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
+
+    if (reactionSearchClear) {
+      reactionSearchClear.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (reactionSearchInput) {
+          reactionSearchInput.value = '';
+          reactionSearchInput.focus();
+        }
+        currentEmojiSearch = '';
+        reactionSearchClear.classList.remove('visible');
+        renderEmojiCatalog(activeReactionCategory, '');
+      });
+    }
+
+    // Hover Bubble Pop-Up Behavior
+    if (reactionPopoverContainer) {
+      reactionPopoverContainer.addEventListener('mouseenter', () => {
+        if (reactionHoverCloseTimer) {
+          clearTimeout(reactionHoverCloseTimer);
+          reactionHoverCloseTimer = null;
+        }
+        if (!reactionPopoverContainer.classList.contains('open')) {
+          dismissAllPopovers();
+          reactionPopoverContainer.classList.add('open');
+        }
+      });
+
+      reactionPopoverContainer.addEventListener('mouseleave', () => {
+        reactionHoverCloseTimer = setTimeout(() => {
+          reactionPopoverContainer.classList.remove('open');
+        }, 280);
+      });
+    }
+
+    if (reactionPopoverBtn) {
+      reactionPopoverBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (reactionHoverCloseTimer) clearTimeout(reactionHoverCloseTimer);
+        const isOpen = reactionPopoverContainer ? reactionPopoverContainer.classList.contains('open') : false;
+        dismissAllPopovers();
+        if (!isOpen && reactionPopoverContainer) {
+          reactionPopoverContainer.classList.add('open');
+        }
+        sound.playClick();
+      });
+    }
+
+    if (startCursorChatBtn) {
+      startCursorChatBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dismissAllPopovers();
+        openCursorChat();
+      });
+    }
+
+    // Dismiss Popovers on Outside Click
+    window.addEventListener('click', (e) => {
+      if (!e.target.closest('.popover-container')) {
+        dismissAllPopovers();
+      }
     });
   }
 
   function triggerReaction(emoji) {
-    addEmojiBurst(emoji, lastClientPos.x, lastClientPos.y);
+    const burstX = (lastClientPos && typeof lastClientPos.x === 'number') ? lastClientPos.x : (window.innerWidth / 2);
+    const burstY = (lastClientPos && typeof lastClientPos.y === 'number') ? lastClientPos.y : (window.innerHeight - 90);
+    
+    addEmojiBurst(emoji, burstX, burstY);
     sound.playReactionChime();
-    const worldPos = screenToWorld(lastClientPos.x, lastClientPos.y);
+
+    const triggerEmojiSpan = document.getElementById('reactionTriggerEmoji');
+    if (triggerEmojiSpan) {
+      triggerEmojiSpan.textContent = emoji;
+      triggerEmojiSpan.style.transform = 'scale(1.4)';
+      setTimeout(() => { triggerEmojiSpan.style.transform = ''; }, 300);
+    }
+
+    const worldPos = screenToWorld(burstX, burstY);
     socket.emit('reaction:emit', {
       emoji,
       x: worldPos.x,
@@ -3322,17 +5254,20 @@
   function updateActiveToolUI() {
     dockButtons.forEach((btn) => {
       const tool = btn.dataset.tool;
-      const isShapeTool = ['rect', 'circle', 'arrow', 'line'].includes(state.activeTool);
+      const isShapeTool = ALL_SHAPE_TOOLS.includes(state.activeTool);
+      const isBrushTool = ALL_BRUSH_TOOLS.includes(state.activeTool);
       if (btn.id === 'shapePopoverBtn' && isShapeTool) btn.classList.add('active');
+      else if (btn.id === 'brushPopoverBtn' && isBrushTool) btn.classList.add('active');
+      else if (btn.id === 'eraserPopoverBtn' && state.activeTool === 'eraser') btn.classList.add('active');
       else if (tool === state.activeTool) btn.classList.add('active');
       else btn.classList.remove('active');
     });
-    boardCanvas.style.cursor = state.activeTool === 'select' ? 'default' : 'crosshair';
+    boardCanvas.style.cursor = state.activeTool === 'select' ? 'default' : (state.activeTool === 'eraser' ? 'none' : 'crosshair');
   }
 
   dockButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (btn.id === 'shapePopoverBtn') return;
+      if (btn.id === 'shapePopoverBtn' || btn.id === 'brushPopoverBtn' || btn.id === 'eraserPopoverBtn' || btn.id === 'colorPopoverBtn') return;
       const tool = btn.dataset.tool;
       if (tool && tool !== 'select' && tool !== 'laser' && !canCurrentUserDraw()) {
         showToast('🎓 Presentation Mode: Only Host can draw on the canvas.', 'warning');
@@ -3797,6 +5732,42 @@
     });
   }
 
+  // Toggle Collaborators' Cursors Visibility
+  function toggleRemoteCursors() {
+    state.showRemoteCursors = !state.showRemoteCursors;
+    localStorage.setItem('cocanvas_show_remote_cursors', state.showRemoteCursors ? 'true' : 'false');
+    updateToggleCursorsUI();
+    sound.playClick();
+    showToast(
+      state.showRemoteCursors
+        ? '👁️ Collaborators\' cursors: <strong>Visible</strong>'
+        : '🙈 Collaborators\' cursors: <strong>Hidden</strong>',
+      'info'
+    );
+  }
+
+  function updateToggleCursorsUI() {
+    if (!toggleCursorsBtn) return;
+    const isVisible = state.showRemoteCursors !== false;
+    toggleCursorsBtn.classList.toggle('active', isVisible);
+    toggleCursorsBtn.classList.toggle('cursors-hidden', !isVisible);
+    toggleCursorsBtn.title = isVisible
+      ? 'Hide Collaborators\' Cursors (Alt + C)'
+      : 'Show Collaborators\' Cursors (Alt + C)';
+
+    const iconVis = toggleCursorsBtn.querySelector('.icon-cursor-visible');
+    const iconHid = toggleCursorsBtn.querySelector('.icon-cursor-hidden');
+    if (iconVis) iconVis.classList.toggle('hidden', !isVisible);
+    if (iconHid) iconHid.classList.toggle('hidden', isVisible);
+  }
+
+  if (toggleCursorsBtn) {
+    toggleCursorsBtn.addEventListener('click', () => {
+      toggleRemoteCursors();
+    });
+    updateToggleCursorsUI();
+  }
+
   // Interactive Hanging Lightbulb Pull Switch Controller
   if (landingThemeToggleBtn) {
     let isDraggingLamp = false;
@@ -3876,9 +5847,15 @@
     }
 
     const key = e.key.toLowerCase();
-    const drawingKeys = ['p', 'h', 'e', 'r', 'o', 'a', 'l', 's', 't', 'c', 'i'];
+    const drawingKeys = ['p', 'h', 'e', 'b', 'f', 'r', 'o', 'a', 'l', 's', 't', 'c', 'i'];
     if (drawingKeys.includes(key) && !canCurrentUserDraw()) {
       showToast('🎓 Presentation Mode: Only the Host can draw.', 'warning');
+      return;
+    }
+
+    if (e.altKey && (key === 'c' || e.code === 'KeyC')) {
+      e.preventDefault();
+      toggleRemoteCursors();
       return;
     }
 
@@ -3887,6 +5864,7 @@
     else if (key === 'p') { state.activeTool = 'pen'; updateActiveToolUI(); sound.playClick(); }
     else if (key === 'h') { state.activeTool = 'highlighter'; updateActiveToolUI(); sound.playClick(); }
     else if (key === 'e') { state.activeTool = 'eraser'; updateActiveToolUI(); sound.playClick(); }
+    else if (key === 'b' || key === 'f') { state.activeTool = 'fill'; updateActiveToolUI(); sound.playClick(); }
     else if (key === 'r') {
       state.activeTool = 'rect';
       activeShapeIcon.innerHTML = shapesPopover.querySelector('[data-tool="rect"] svg').outerHTML;
@@ -3900,8 +5878,9 @@
       sound.playClick();
     }
     else if (key === 'a') {
-      state.activeTool = 'arrow';
-      activeShapeIcon.innerHTML = shapesPopover.querySelector('[data-tool="arrow"] svg').outerHTML;
+      state.activeTool = 'arrow-right';
+      const arrowBtn = shapesPopover.querySelector('[data-tool="arrow-right"]') || shapesPopover.querySelector('[data-tool="arrow"]');
+      if (arrowBtn) activeShapeIcon.innerHTML = arrowBtn.querySelector('svg').outerHTML;
       updateActiveToolUI();
       sound.playClick();
     }
@@ -3929,6 +5908,30 @@
     }
     else if (key === 'delete' || key === 'backspace') {
       if (state.selectedElementId) selectionDeleteBtn.click();
+    }
+    else if (key === '[') {
+      e.preventDefault();
+      if (state.activeTool === 'eraser') {
+        setEraserSize(state.activeEraserSize - 2);
+        sound.playClick();
+        showToast(`Eraser Size: ${state.activeEraserSize}px`);
+      } else {
+        setBrushSize(state.activeWidth - 1);
+        sound.playClick();
+        showToast(`Brush Size: ${state.activeWidth}px`);
+      }
+    }
+    else if (key === ']') {
+      e.preventDefault();
+      if (state.activeTool === 'eraser') {
+        setEraserSize(state.activeEraserSize + 2);
+        sound.playClick();
+        showToast(`Eraser Size: ${state.activeEraserSize}px`);
+      } else {
+        setBrushSize(state.activeWidth + 1);
+        sound.playClick();
+        showToast(`Brush Size: ${state.activeWidth}px`);
+      }
     }
     else if (key === '1') { triggerReaction('🔥'); }
     else if (key === '2') { triggerReaction('❤️'); }
@@ -4388,6 +6391,134 @@
       });
     });
   }
+
+  // --- ChatSpace Full Emoji Picker Popover ---
+  const btnChatEmojiPicker = document.getElementById('btnChatEmojiPicker');
+  const chatEmojiContainer = document.getElementById('chatEmojiContainer');
+  const chatEmojiPopover = document.getElementById('chatEmojiPopover');
+  const chatEmojiSearchInput = document.getElementById('chatEmojiSearchInput');
+  const chatEmojiTabs = document.getElementById('chatEmojiTabs');
+  const chatEmojiGridScroll = document.getElementById('chatEmojiGridScroll');
+
+  let activeChatEmojiCategory = 'all';
+  let chatEmojiSearchQuery = '';
+
+  function renderChatEmojiPicker(category = 'all', searchQuery = '') {
+    if (!chatEmojiGridScroll || !EMOJI_CATEGORIES) return;
+    chatEmojiGridScroll.innerHTML = '';
+
+    const query = (searchQuery || '').trim().toLowerCase();
+    let total = 0;
+
+    EMOJI_CATEGORIES.forEach((cat) => {
+      if (category !== 'all' && cat.id !== category && !query) {
+        return;
+      }
+
+      const filtered = cat.emojis.filter((item) => {
+        if (!query) return true;
+        return item.char.includes(query) || (item.keywords && item.keywords.toLowerCase().includes(query)) || cat.name.toLowerCase().includes(query);
+      });
+
+      if (filtered.length === 0) return;
+      total += filtered.length;
+
+      const group = document.createElement('div');
+      group.className = 'reaction-group-section';
+
+      const title = document.createElement('div');
+      title.className = 'reaction-group-title';
+      title.textContent = `${cat.icon} ${cat.name}`;
+      group.appendChild(title);
+
+      const grid = document.createElement('div');
+      grid.className = 'reaction-grid-layout';
+
+      filtered.forEach((emojiItem) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'reaction-item';
+        btn.dataset.emoji = emojiItem.char;
+        btn.title = emojiItem.char;
+        btn.textContent = emojiItem.char;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (chatMessageInput) {
+            chatMessageInput.value += emojiItem.char;
+            chatMessageInput.focus();
+          }
+          sound.playPop();
+          btn.style.transform = 'scale(1.4)';
+          setTimeout(() => { btn.style.transform = ''; }, 180);
+        });
+        grid.appendChild(btn);
+      });
+
+      group.appendChild(grid);
+      chatEmojiGridScroll.appendChild(group);
+    });
+
+    if (total === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'reaction-no-results';
+      empty.textContent = `No emojis found for "${query}"`;
+      chatEmojiGridScroll.appendChild(empty);
+    }
+  }
+
+  // Populate initial grid when ChatSpace is ready
+  renderChatEmojiPicker('all', '');
+
+  if (btnChatEmojiPicker && chatEmojiContainer) {
+    btnChatEmojiPicker.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = chatEmojiContainer.classList.contains('open');
+      if (!isOpen) {
+        dismissAllPopovers();
+        renderChatEmojiPicker(activeChatEmojiCategory, chatEmojiSearchQuery);
+        chatEmojiContainer.classList.add('open');
+        if (chatEmojiSearchInput) {
+          setTimeout(() => chatEmojiSearchInput.focus(), 50);
+        }
+      } else {
+        chatEmojiContainer.classList.remove('open');
+      }
+      sound.playClick();
+    });
+  }
+
+  if (chatEmojiTabs) {
+    chatEmojiTabs.querySelectorAll('.chat-emoji-tab').forEach((tab) => {
+      tab.addEventListener('click', (e) => {
+        e.stopPropagation();
+        chatEmojiTabs.querySelectorAll('.chat-emoji-tab').forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeChatEmojiCategory = tab.dataset.cat || 'all';
+        if (chatEmojiSearchInput) chatEmojiSearchInput.value = '';
+        chatEmojiSearchQuery = '';
+        renderChatEmojiPicker(activeChatEmojiCategory, '');
+        if (chatEmojiGridScroll) chatEmojiGridScroll.scrollTop = 0;
+        sound.playClick();
+      });
+    });
+  }
+
+  if (chatEmojiSearchInput) {
+    chatEmojiSearchInput.addEventListener('input', (e) => {
+      chatEmojiSearchQuery = e.target.value;
+      renderChatEmojiPicker(activeChatEmojiCategory, chatEmojiSearchQuery);
+    });
+    chatEmojiSearchInput.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  // Dismiss Chat Emoji Popover on outside click
+  window.addEventListener('click', (e) => {
+    if (chatEmojiContainer && !e.target.closest('#chatEmojiContainer')) {
+      chatEmojiContainer.classList.remove('open');
+    }
+  });
 
   // --- Voice Input (Speech-to-Text) ---
   let speechRecognizer = null;
