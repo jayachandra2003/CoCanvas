@@ -128,7 +128,7 @@
           <!-- Action Buttons -->
           <div class="hero-action-buttons">
             <button class="hero-primary-btn" id="btnStartInstantCanvas">
-              <span id="btnStartCanvasText">Draw Now</span>
+              <span id="btnStartCanvasText">Launch Canvas</span>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
                 <line x1="5" y1="12" x2="19" y2="12"></line>
                 <polyline points="12 5 19 12 12 19"></polyline>
@@ -178,15 +178,15 @@
             <div class="info-card-content news-content">
               <div class="news-release-header">
                 <span class="news-release-title">Latest Updates</span>
-                <span class="news-release-date">Version 2.5</span>
+                <span class="news-release-date">Version 3.0</span>
               </div>
               <ul class="news-updates-list">
-                <li><span class="news-item-icon">💻</span><span><strong>Smart Code Editor</strong>: Auto-closing pairs & auto-indent</span></li>
-                <li><span class="news-item-icon">👑</span><span><strong>Host & Co-Host Roles</strong>: Transfer host & share presentation access</span></li>
-                <li><span class="news-item-icon">🎙️</span><span><strong>Voice-to-Text Chat</strong>: Hands-free voice speech input</span></li>
-                <li><span class="news-item-icon">🔔</span><span><strong>Unread Badges</strong>: Real-time counter on minimized chat</span></li>
-                <li><span class="news-item-icon">🧹</span><span><strong>Refined Tool Dock</strong>: Clear icons for Eraser, Notes & Code</span></li>
-                <li><span class="news-item-icon">⚡</span><span><strong>60fps Vector Sync</strong>: Ultra-fast multiplayer drawing</span></li>
+                <li><span class="news-item-icon">🎙️</span><span><strong>Multi-Language Voice Typing</strong>: Speaks in any language & auto-translates to English in real time</span></li>
+                <li><span class="news-item-icon">🛡️</span><span><strong>2-Kick Anti-Abuse Ban</strong>: Host kick tracking with permanent room ban protection</span></li>
+                <li><span class="news-item-icon">👥</span><span><strong>Room Members & Roles Hub</strong>: Top-right modal to manage hosts, jump to view & kick users</span></li>
+                <li><span class="news-item-icon">🗺️</span><span><strong>Enhanced Radar Minimap</strong>: Bigger radar overview with responsive collision avoidance</span></li>
+                <li><span class="news-item-icon">🎨</span><span><strong>MS Paint Brushes & Personas</strong>: 9 realistic brushes, high-res avatars & color palettes</span></li>
+                <li><span class="news-item-icon">💻</span><span><strong>Smart IDE Code Compiler</strong>: Real-time collaborative code editor with syntax formatting</span></li>
               </ul>
             </div>
           </div>
@@ -252,28 +252,18 @@
             </div>
             <span class="brand-title"><span class="brand-co-gradient">Co</span>Canvas</span>
           </div>
+        </div>
 
-          <div class="room-pill" id="roomPillBtn" title="Click to copy room code">
-            <span class="live-dot"></span>
-            <span class="room-label">Room:</span>
-            <span class="room-code-display" id="currentRoomCode">------</span>
-            <svg class="copy-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-          </div>
-
-          <!-- Room Mode Selector / Indicator -->
+        <!-- Middle / Center: Friendly / Host Mode Button -->
+        <div class="nav-center">
           <div class="dropdown-wrapper" id="roomModeWrapper">
             <button class="nav-btn room-mode-btn" id="roomModeBtn" title="Canvas Drawing Permissions">
-              <span id="roomModeIcon">🤝</span>
               <span id="roomModeLabel">Friendly Mode</span>
               <span class="room-mode-caret" id="roomModeCaret">▾</span>
             </button>
             <div class="dropdown-menu glass-panel room-mode-menu" id="roomModeMenu">
               <div class="dropdown-header-title">CANVAS PERMISSIONS</div>
               <button class="dropdown-item active" id="btnModeFriendly" data-mode="friendly">
-                <span class="mode-item-icon">🤝</span>
                 <div class="mode-item-info">
                   <strong class="mode-item-title">Friendly Mode</strong>
                   <span class="mode-item-desc">Everyone can draw & collaborate</span>
@@ -281,7 +271,6 @@
                 <span class="mode-check-indicator">✓</span>
               </button>
               <button class="dropdown-item" id="btnModeHost" data-mode="host">
-                <span class="mode-item-icon">🎓</span>
                 <div class="mode-item-info">
                   <strong class="mode-item-title">Host Mode (Presenting)</strong>
                   <span class="mode-item-desc">Only Hosts can draw · Viewers watch</span>
@@ -290,7 +279,6 @@
               </button>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item" id="btnOpenManageHosts">
-                <span class="mode-item-icon">👑</span>
                 <div class="mode-item-info">
                   <strong class="mode-item-title">Manage Hosts & Roles</strong>
                   <span class="mode-item-desc">Transfer host & share Co-Host access</span>
@@ -298,16 +286,6 @@
               </button>
             </div>
           </div>
-
-          <!-- Exit Room Button -->
-          <button class="nav-btn exit-room-btn" id="btnExitRoom" title="Exit Room">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-            <span>Exit</span>
-          </button>
         </div>
 
         <div class="nav-right">
@@ -315,76 +293,26 @@
           <div class="collaborator-stack" id="collaboratorStack" title="Click teammate to follow their view"></div>
 
           <div class="nav-actions">
-
-
             <!-- Dark / Light Theme Toggle -->
             <button class="nav-btn icon-btn" id="canvasThemeToggleBtn" title="Toggle Light / Dark Mode">
-              <span id="canvasThemeIcon">🌙</span>
-            </button>
-
-            <!-- Grid Style Toggle -->
-            <button class="nav-btn icon-btn" id="gridStyleToggleBtn" title="Toggle Grid Mode">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="7" height="7"></rect>
-                <rect x="14" y="3" width="7" height="7"></rect>
-                <rect x="14" y="14" width="7" height="7"></rect>
-                <rect x="3" y="14" width="7" height="7"></rect>
+              <svg class="theme-icon-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <svg class="theme-icon-moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
               </svg>
             </button>
 
-            <!-- Toggle Collaborator Cursors Visibility (Show / Hide) -->
-            <button class="nav-btn icon-btn" id="toggleCursorsBtn" title="Toggle Collaborators' Cursors (Alt + C)">
-              <svg class="icon-cursor-visible" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m3 3 7 18 3-7 7-3L3 3z"></path>
-                <path d="m13 13 4 4"></path>
-              </svg>
-              <svg class="icon-cursor-hidden hidden" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m3 3 7 18 3-7 7-3L3 3z"></path>
-                <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2.3"></line>
-              </svg>
-            </button>
-
-
-
-            <!-- Export Dropdown -->
-            <div class="dropdown-wrapper">
-              <button class="nav-btn icon-btn" id="exportBtn" title="Export Whiteboard">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7 10 12 15 17 10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-              </button>
-              <div class="dropdown-menu glass-panel" id="exportMenu">
-                <button class="dropdown-item" id="exportPngBtn">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><polyline points="21 15 16 10 5 21"></polyline></svg>
-                  <span>Export PNG (2x HD)</span>
-                </button>
-                <button class="dropdown-item" id="exportPdfBtn">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                  <span>Export PDF</span>
-                </button>
-                <button class="dropdown-item" id="exportDocxBtn">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-                  <span>Export DOCS (.docx)</span>
-                </button>
-                <button class="dropdown-item" id="exportJsonBtn">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                  <span>Export JSON Data</span>
-                </button>
-                <label class="dropdown-item" id="importJsonLabel">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline></svg>
-                  <span>Import JSON</span>
-                  <input type="file" id="importJsonInput" accept=".json" style="display:none;" />
-                </label>
-              </div>
-            </div>
-
-            <button class="nav-btn" id="clearBoardBtn" title="Clear Canvas">
-              <span>Clear Canvas</span>
-            </button>
-
-            <button class="nav-btn icon-btn" id="shortcutsNavBtn" title="Keyboard Shortcuts">
+            <!-- Keyboard Shortcuts -->
+            <button class="nav-btn icon-btn" id="shortcutsNavBtn" title="Keyboard Shortcuts (?)">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect width="20" height="14" x="2" y="5" rx="2.5"></rect>
                 <line x1="6" x2="6.01" y1="9" y2="9" stroke-width="2.5"></line>
@@ -393,6 +321,27 @@
                 <line x1="18" x2="18.01" y1="9" y2="9" stroke-width="2.5"></line>
                 <line x1="7" x2="17" y1="14" y2="14" stroke-width="2.2"></line>
               </svg>
+            </button>
+
+            <!-- Room Code Pill -->
+            <div class="room-pill" id="roomPillBtn" title="Click to copy room code">
+              <span class="live-dot"></span>
+              <span class="room-label">Room:</span>
+              <span class="room-code-display" id="currentRoomCode">------</span>
+              <svg class="copy-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </div>
+
+            <!-- Exit Room Button -->
+            <button class="nav-btn exit-room-btn" id="btnExitRoom" title="Exit Room">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              <span>Exit</span>
             </button>
           </div>
         </div>
@@ -440,7 +389,7 @@
           <button class="minimap-toggle-btn" id="minimapToggleBtn" title="Toggle Minimap">▾</button>
         </div>
         <div class="minimap-body" id="minimapBody">
-          <canvas id="minimapCanvas" width="180" height="110"></canvas>
+          <canvas id="minimapCanvas" width="165" height="105"></canvas>
           <div id="minimapViewport" class="minimap-viewport"></div>
         </div>
       </div>
@@ -546,10 +495,18 @@
         </div>
       </aside>
 
-      <!-- ChatSpace Floating Wall Tab (Visible when collapsed) -->
+      <!-- ChatSpace Floating Button (Matching User Reference Visual) -->
       <button class="chat-floating-tab" id="chatFloatingTab" title="Open ChatSpace">
-        <span class="chat-tab-icon">💬</span>
-        <span class="chat-tab-label">Chat</span>
+        <svg class="chat-visual-svg" viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <!-- Yellow Circle Background -->
+          <circle cx="50" cy="50" r="46.5" class="chat-svg-bg" />
+          <!-- Diagonal Soft Shadow -->
+          <path d="M44 44 L88 88 A 46.5 46.5 0 0 1 20 80 Z" class="chat-svg-shadow" />
+          <!-- Back / Bottom-Right Speech Bubble -->
+          <path d="M42 58 C38 71 50 80 64 77 C67 76.5 70 77.5 73.5 80 C75.5 81.5 78 80.5 77.5 78 C76.5 73.5 77 70 79 67 C84 59 81 48 70 43.5 C59 39 46 44 42 58 Z" class="chat-svg-bubble-back" />
+          <!-- Front / Top-Left Speech Bubble -->
+          <path d="M44 20 C28 20 20 32 21 44.5 C21.5 50.5 24.5 55 23 58.5 C22 61 24.5 62.5 26.5 61 C29.5 59.5 32.5 59 35.5 59.5 C40.5 63 49 64 55 60 C64.5 54 67 42 65 32 C62 23.5 53.5 20 44 20 Z" class="chat-svg-bubble-front" />
+        </svg>
         <span class="chat-unread-badge hidden" id="chatUnreadBadge">0</span>
       </button>
 
@@ -1028,6 +985,77 @@
           <button class="dock-btn zoom-indicator" id="zoomResetBtn" title="Reset Zoom (Ctrl+0)"><span id="zoomLabel">100%</span></button>
           <button class="dock-btn icon-small" id="zoomInBtn" title="Zoom In (+)">+</button>
         </div>
+
+        <div class="dock-divider"></div>
+
+        <!-- Canvas View & Board Actions -->
+        <div class="dock-section">
+          <!-- Grid Style Toggle -->
+          <button class="dock-btn" id="gridStyleToggleBtn" title="Toggle Grid Mode">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+          </button>
+
+          <!-- Toggle Collaborator Cursors Visibility (Show / Hide) -->
+          <button class="dock-btn" id="toggleCursorsBtn" title="Toggle Collaborators' Cursors (Alt + C)">
+            <svg class="icon-cursor-visible" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m3 3 7 18 3-7 7-3L3 3z"></path>
+              <path d="m13 13 4 4"></path>
+            </svg>
+            <svg class="icon-cursor-hidden hidden" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m3 3 7 18 3-7 7-3L3 3z"></path>
+              <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2.3"></line>
+            </svg>
+          </button>
+
+          <!-- Export Dropdown -->
+          <div class="dropdown-wrapper">
+            <button class="dock-btn" id="exportBtn" title="Export Whiteboard">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+            </button>
+            <div class="dropdown-menu glass-panel" id="exportMenu">
+              <button class="dropdown-item" id="exportPngBtn">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><polyline points="21 15 16 10 5 21"></polyline></svg>
+                <span>Export PNG (2x HD)</span>
+              </button>
+              <button class="dropdown-item" id="exportPdfBtn">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <span>Export PDF</span>
+              </button>
+              <button class="dropdown-item" id="exportDocxBtn">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                <span>Export DOCS (.docx)</span>
+              </button>
+              <button class="dropdown-item" id="exportJsonBtn">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                <span>Export JSON Data</span>
+              </button>
+              <label class="dropdown-item" id="importJsonLabel">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline></svg>
+                <span>Import JSON</span>
+                <input type="file" id="importJsonInput" accept=".json" style="display:none;" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Clear Canvas -->
+          <button class="dock-btn danger-dock-btn" id="clearBoardBtn" title="Clear Canvas">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+        </div>
       </nav>
 
     </div>
@@ -1082,10 +1110,10 @@
       <div class="modal-card manage-hosts-card glass-panel animate-pop">
         <div class="modal-header">
           <div class="modal-brand">
-            <span class="manage-hosts-header-icon">👑</span>
+            <span class="manage-hosts-header-icon">👥</span>
             <div class="manage-hosts-header-title">
-              <h3>Room Roles & Permissions</h3>
-              <p class="modal-sub">Transfer host ownership or share Co-Host access</p>
+              <h3>Room Members & Roles</h3>
+              <p class="modal-sub">View collaborators, jump to view, or manage roles & remove members</p>
             </div>
           </div>
           <button class="close-modal-btn" id="closeManageHostsBtn">&times;</button>
@@ -1105,7 +1133,7 @@
         <div class="manage-hosts-footer">
           <div class="hosts-footer-note">
             <span class="footer-note-icon">💡</span>
-            <p><strong>Primary Host</strong> can transfer full ownership or assign multiple <strong>Co-Hosts</strong> (⭐) to present simultaneously in Host Mode.</p>
+            <p><strong>Primary Host</strong> &amp; <strong>Co-Hosts</strong> (⭐) have access to manage permissions and kick/remove disruptive participants.</p>
           </div>
         </div>
       </div>
