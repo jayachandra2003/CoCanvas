@@ -5474,35 +5474,10 @@
       });
     }
 
-    // Hover Bubble Pop-Up Behavior on Desktop
-    if (reactionPopoverContainer) {
-      reactionPopoverContainer.addEventListener('mouseenter', () => {
-        if (reactionHoverCloseTimer) {
-          clearTimeout(reactionHoverCloseTimer);
-          reactionHoverCloseTimer = null;
-        }
-        if (window.matchMedia('(hover: hover)').matches && !reactionPopover.classList.contains('open')) {
-          dismissAllPopovers();
-          togglePopover(reactionPopover, reactionPopoverBtn);
-        }
-      });
-
-      reactionPopoverContainer.addEventListener('mouseleave', () => {
-        if (window.matchMedia('(hover: hover)').matches) {
-          reactionHoverCloseTimer = setTimeout(() => {
-            if (reactionPopover) {
-              reactionPopover.classList.remove('open');
-              reactionPopover.classList.remove('active');
-            }
-          }, 350);
-        }
-      });
-    }
-
+    // Reaction & Emoji Popover Trigger (Stable click toggle - never auto-closes while choosing)
     if (reactionPopoverBtn) {
       reactionPopoverBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (reactionHoverCloseTimer) clearTimeout(reactionHoverCloseTimer);
         togglePopover(reactionPopover, reactionPopoverBtn);
         sound.playClick();
       });
