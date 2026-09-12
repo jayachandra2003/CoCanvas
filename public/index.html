@@ -163,9 +163,9 @@
               <h3>About</h3>
             </div>
             <div class="info-card-content">
-              <p><strong>CoCanvas</strong> is a free, instant real-time collaborative whiteboard and visual canvas.</p>
-              <p>Create multiplayer rooms in 1 click, sketch diagrams, brainstorm ideas with sticky notes, and draw in pure 60fps vector graphics without login friction!</p>
-              <p>Enjoy laser pointers, live cursor chat, prebuilt templates, and 2x HD Retina export. Have fun collaborating!</p>
+              <p><strong>CoCanvas</strong> is a free, instant real-time collaborative whiteboard, live coding workspace, and visual canvas.</p>
+              <p>Create multiplayer rooms in 1 click, sketch diagrams, write and format code with our smart IDE compiler, brainstorm with sticky notes, and present seamlessly in Host Mode without login friction!</p>
+              <p>Enjoy voice chat, laser pointers, live cursor chat, prebuilt templates, and 2x HD Retina export. Have fun collaborating!</p>
             </div>
           </div>
 
@@ -177,17 +177,16 @@
             </div>
             <div class="info-card-content news-content">
               <div class="news-release-header">
-                <span class="news-release-title">Fresh Paint</span>
-                <span class="news-release-date">Version 2.0</span>
+                <span class="news-release-title">Latest Updates</span>
+                <span class="news-release-date">Version 2.5</span>
               </div>
               <ul class="news-updates-list">
-                <li>⚡ <strong>60fps Vector Canvas</strong> with sub-millisecond sync</li>
-                <li>🌙 <strong>Full Dark Mode</strong> & Light Mode theme toggle</li>
-                <li>🎭 <strong>24 Curated Avatars</strong> + custom photo upload</li>
-                <li>🪄 <strong>Laser Pointer</strong> & Figma-style cursor chat</li>
-                <li>📋 <strong>Prebuilt Templates</strong>: Kanban, Matrix & Retro</li>
-                <li>📸 <strong>2x HD Retina PNG</strong> & JSON export/import</li>
-                <li>🔒 <strong>1-Click Invite Links</strong> & private room codes</li>
+                <li><span class="news-item-icon">💻</span><span><strong>Smart Code Editor</strong>: Auto-closing pairs & auto-indent</span></li>
+                <li><span class="news-item-icon">🎓</span><span><strong>Host Presentation</strong>: Teacher lock & Friendly modes</span></li>
+                <li><span class="news-item-icon">🎙️</span><span><strong>Voice-to-Text Chat</strong>: Hands-free voice speech input</span></li>
+                <li><span class="news-item-icon">🔔</span><span><strong>Unread Badges</strong>: Real-time counter on minimized chat</span></li>
+                <li><span class="news-item-icon">🧹</span><span><strong>Refined Tool Dock</strong>: Clear icons for Eraser, Notes & Code</span></li>
+                <li><span class="news-item-icon">⚡</span><span><strong>60fps Vector Sync</strong>: Ultra-fast multiplayer drawing</span></li>
               </ul>
             </div>
           </div>
@@ -216,15 +215,15 @@
               <div class="guide-step-item">
                 <span class="guide-step-num">3</span>
                 <div class="guide-step-text">
-                  <strong>Draw & Brainstorm</strong>
-                  <p>Use pen, shapes, sticky notes, laser pointer & chat.</p>
+                  <strong>Draw, Code & Brainstorm</strong>
+                  <p>Use pen, shapes, smart code editor, sticky notes, voice chat & laser.</p>
                 </div>
               </div>
               <div class="guide-step-item">
                 <span class="guide-step-num">4</span>
                 <div class="guide-step-text">
-                  <strong>Export in 2x HD</strong>
-                  <p>Download crisp 2x Retina PNGs or JSON backups.</p>
+                  <strong>Present & Export</strong>
+                  <p>Toggle Host/Friendly mode & export crisp 2x Retina PNGs.</p>
                 </div>
               </div>
             </div>
@@ -542,8 +541,10 @@
           </button>
 
           <button class="dock-btn" data-tool="eraser" id="toolEraser" title="Eraser (E)">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L20 20Z"></path>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"></path>
+              <path d="M22 21H7"></path>
+              <path d="m5 11 9 9"></path>
             </svg>
             <span class="hotkey-indicator">E</span>
           </button>
@@ -582,7 +583,13 @@
         <!-- Sticky, Text, Image -->
         <div class="dock-section">
           <button class="dock-btn" data-tool="sticky" id="toolSticky" title="Sticky Note (S)">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3z"></path></svg>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10l6-6V5a2 2 0 0 0-2-2z"></path>
+              <path d="M15 15h6"></path>
+              <path d="M15 15v6"></path>
+              <line x1="7" y1="8" x2="13" y2="8"></line>
+              <line x1="7" y1="12" x2="11" y2="12"></line>
+            </svg>
             <span class="hotkey-indicator">S</span>
           </button>
 
@@ -592,7 +599,11 @@
           </button>
 
           <button class="dock-btn" data-tool="code" id="toolCode" title="Code Panel / Snippet (C)">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+              <line x1="14" y1="4" x2="10" y2="20"></line>
+            </svg>
             <span class="hotkey-indicator">C</span>
           </button>
 

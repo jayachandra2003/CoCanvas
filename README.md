@@ -1,4 +1,4 @@
-﻿# 🎨 CoCanvas — Professional Real-Time Collaborative Whiteboard
+# 🎨 CoCanvas — Professional Real-Time Collaborative Whiteboard
 
 <div align="center">
 
@@ -24,21 +24,22 @@
 * **Built-in Templates**: One-click insertion for **Kanban Boards**, **Priority 2x2 Matrix**, and **Team Retrospective boards**.
 * **Export in Multiple Formats**: Export entire board or viewport to **PNG (High-Res)**, **PDF document**, **Word DOCX**, and structured **JSON** with full re-import capability.
 
-### 👥 Real-Time Multiplayer Collaboration
+### 👥 Real-Time Multiplayer & Presentation Modes
+* **Host Presentation Mode vs. Friendly Mode**: Host can switch rooms between *Presentation Mode* (locks participant drawing tools into view-only presentation, ideal for classrooms & webinars) and *Friendly Mode* (full collaborative drawing for all participants).
 * **Live Multiplayer Presence**: Real-time cursor coordinates, user names, color rings, and live status dots.
-* **Host Control & Seamless Reconnect**: Crown badge identification (`👑`) for room hosts with auto-handover on disconnect.
+* **Host Control & Seamless Reconnect**: Crown badge identification (`👑`) for room hosts with automatic host handover upon disconnect.
 * **Laser Pointer & Radar Ping**: Draw disappearing glow laser trails (`K`) or ping points on the canvas (`P`) to focus team attention.
 * **Instant Cursor Chat**: Press `/` or click Cursor Chat to broadcast real-time floating thought bubbles attached directly to your cursor.
 * **Emoji Bursts**: Send floating celebration reaction particles anywhere on the canvas.
 
-### 💬 ChatSpace (Integrated Sidebar Communication)
+### 💬 ChatSpace with Voice Input
+* **Speech-to-Text Voice Input**: Dictate messages hands-free using the built-in microphone button with instant speech recognition.
 * **Docked Right-Wall Sidebar**: Clean, professional Slack/Discord-grade chat panel.
-* **Smooth Wall Collapse**: Slide the chat seamlessly into the right wall with the arrow button (`>`).
-* **Floating Wall Tab**: Persistent tab docked on the right screen edge with unread badge counter and audio chime alerts.
+* **Smooth Wall Collapse & Unread Badges**: Slide the chat into the right wall (`>`) with live notification badge counter and sound chime alerts for new unread messages.
 * **Room History Sync**: New and reconnecting teammates instantly receive the recent room chat thread.
 
-### 💻 Live Code Snippet Cards & Sticky Notes
-* **Interactive Code Cards**: Share multi-language code snippets (JavaScript, Python, TypeScript, HTML, CSS, Rust, Go, C++, SQL, JSON, Markdown) with auto-formatted line counters.
+### 💻 Smart Code Snippet Compiler & Sticky Notes
+* **Smart Code IDE Engine**: Interactive multi-language code cards (Java, Python, C++, TypeScript, JavaScript, Rust, Go, HTML, CSS, JSON, Markdown) with auto-closing bracket pairs, smart enter expansion, and intelligent auto-indentation.
 * **Color-Themed Sticky Notes**: Editable sticky notes with Pastel themes (Yellow, Sky, Pink, Mint, Purple, Peach).
 
 ### 🎨 Neo-Brutalist Design & Web Audio Synthesizer

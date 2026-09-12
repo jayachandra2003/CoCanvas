@@ -1528,17 +1528,161 @@
       deleteBtn.addEventListener(evtType, (e) => e.stopPropagation());
     });
 
-    // Tab key support in textarea
+    // --- Smart IDE Code Editor Engine (Auto-close brackets, Auto-indent on Enter, Tab/Shift+Tab) ---
+    const CODE_PAIRS = { '{': '}', '(': ')', '[': ']', '"': '"', "'": "'", '`': '`' };
+    const CODE_CLOSING_CHARS = new Set(['}', ')', ']', '"', "'", '`']);
+
+    function triggerCodeSync() {
+      updateLineNumbers();
+      el.code = textarea.value;
+      socket.emit('element:update', { id: el.id, code: el.code });
+    }
+
     textarea.addEventListener('keydown', (e) => {
+      if (!canCurrentUserDraw()) return;
+
+      const val = textarea.value;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const isSelection = start !== end;
+      const beforeCursor = val.substring(0, start);
+      const afterCursor = val.substring(end);
+
+      // 1. Tab & Shift+Tab (Indentation & Outdent)
       if (e.key === 'Tab') {
         e.preventDefault();
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        textarea.value = textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
-        textarea.selectionStart = textarea.selectionEnd = start + 2;
-        updateLineNumbers();
-        el.code = textarea.value;
-        socket.emit('element:update', { id: el.id, code: el.code });
+        if (isSelection) {
+          const firstLineStart = val.lastIndexOf('\n', start - 1) + 1;
+          let lastLineEnd = val.indexOf('\n', end);
+          if (lastLineEnd === -1) lastLineEnd = val.length;
+
+          const lines = val.substring(firstLineStart, lastLineEnd).split('\n');
+          let modifiedLines;
+          if (e.shiftKey) {
+            modifiedLines = lines.map((l) => l.startsWith('  ') ? l.substring(2) : (l.startsWith(' ') ? l.substring(1) : l));
+          } else {
+            modifiedLines = lines.map((l) => '  ' + l);
+          }
+          const replaced = modifiedLines.join('\n');
+          textarea.value = val.substring(0, firstLineStart) + replaced + val.substring(lastLineEnd);
+          textarea.selectionStart = firstLineStart;
+          textarea.selectionEnd = firstLineStart + replaced.length;
+        } else {
+          if (e.shiftKey) {
+            const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+            const currentLine = val.substring(lineStart, start);
+            if (currentLine.startsWith('  ')) {
+              textarea.value = val.substring(0, lineStart) + val.substring(lineStart + 2);
+              textarea.selectionStart = textarea.selectionEnd = Math.max(lineStart, start - 2);
+            } else if (currentLine.startsWith(' ')) {
+              textarea.value = val.substring(0, lineStart) + val.substring(lineStart + 1);
+              textarea.selectionStart = textarea.selectionEnd = Math.max(lineStart, start - 1);
+            }
+          } else {
+            textarea.value = beforeCursor + '  ' + afterCursor;
+            textarea.selectionStart = textarea.selectionEnd = start + 2;
+          }
+        }
+        triggerCodeSync();
+        return;
+      }
+
+      // 2. Auto-Closing Pairs: { } ( ) [ ] " " ' ' ` `
+      if (CODE_PAIRS[e.key]) {
+        const openChar = e.key;
+        const closeChar = CODE_PAIRS[openChar];
+
+        if (isSelection) {
+          e.preventDefault();
+          const selectedText = val.substring(start, end);
+          textarea.value = beforeCursor + openChar + selectedText + closeChar + afterCursor;
+          textarea.selectionStart = start + 1;
+          textarea.selectionEnd = end + 1;
+          triggerCodeSync();
+          return;
+        } else {
+          // If typing quote when next char is identical quote, step over
+          if ((openChar === '"' || openChar === "'" || openChar === '`') && afterCursor.startsWith(openChar)) {
+            e.preventDefault();
+            textarea.selectionStart = textarea.selectionEnd = start + 1;
+            return;
+          }
+
+          e.preventDefault();
+          textarea.value = beforeCursor + openChar + closeChar + afterCursor;
+          textarea.selectionStart = textarea.selectionEnd = start + 1;
+          triggerCodeSync();
+          return;
+        }
+      }
+
+      // 3. Skip Over Closing Characters (Overtype)
+      if (CODE_CLOSING_CHARS.has(e.key) && !isSelection) {
+        if (afterCursor.startsWith(e.key)) {
+          e.preventDefault();
+          textarea.selectionStart = textarea.selectionEnd = start + 1;
+          return;
+        }
+      }
+
+      // 4. Smart Backspace: Delete matching empty pair e.g. {|} or (|)
+      if (e.key === 'Backspace' && !isSelection && start > 0) {
+        const prevChar = beforeCursor.slice(-1);
+        const nextChar = afterCursor.charAt(0);
+        if (CODE_PAIRS[prevChar] === nextChar) {
+          e.preventDefault();
+          textarea.value = val.substring(0, start - 1) + val.substring(start + 1);
+          textarea.selectionStart = textarea.selectionEnd = start - 1;
+          triggerCodeSync();
+          return;
+        }
+      }
+
+      // 5. Intelligent Enter & Auto-Indentation (Java, Python, JS, C++, Rust, Go, HTML, CSS, etc.)
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const lastNewLine = beforeCursor.lastIndexOf('\n');
+        const currentLine = beforeCursor.substring(lastNewLine + 1);
+        const indentMatch = currentLine.match(/^[ \t]*/);
+        const baseIndent = indentMatch ? indentMatch[0] : '';
+        const tabStep = '  '; // 2-space standard indent
+
+        const trimmedLine = currentLine.trim();
+        const isBetweenBrackets =
+          (beforeCursor.endsWith('{') && afterCursor.startsWith('}')) ||
+          (beforeCursor.endsWith('(') && afterCursor.startsWith(')')) ||
+          (beforeCursor.endsWith('[') && afterCursor.startsWith(']'));
+
+        if (isBetweenBrackets) {
+          // Expand bracket block:
+          // {
+          //   |
+          // }
+          const newText = '\n' + baseIndent + tabStep + '\n' + baseIndent;
+          textarea.value = beforeCursor + newText + afterCursor;
+          const cursorPos = start + 1 + baseIndent.length + tabStep.length;
+          textarea.selectionStart = textarea.selectionEnd = cursorPos;
+        } else if (
+          trimmedLine.endsWith('{') ||
+          trimmedLine.endsWith(':') ||
+          trimmedLine.endsWith('(') ||
+          trimmedLine.endsWith('[') ||
+          trimmedLine.endsWith('=>') ||
+          trimmedLine.endsWith('->')
+        ) {
+          // Increase indent level for block openers (Java/JS '{', Python ':', etc.)
+          const newText = '\n' + baseIndent + tabStep;
+          textarea.value = beforeCursor + newText + afterCursor;
+          textarea.selectionStart = textarea.selectionEnd = start + newText.length;
+        } else {
+          // Maintain current indentation
+          const newText = '\n' + baseIndent;
+          textarea.value = beforeCursor + newText + afterCursor;
+          textarea.selectionStart = textarea.selectionEnd = start + newText.length;
+        }
+
+        triggerCodeSync();
+        return;
       }
     });
 
