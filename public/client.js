@@ -4408,14 +4408,85 @@
     }
   });
 
+  function alignPopoverToTrigger(popoverEl, triggerBtn) {
+    if (!popoverEl) return;
+    if (window.innerWidth <= 768) {
+      popoverEl.style.left = '50%';
+      popoverEl.style.transform = 'translateX(-50%)';
+      popoverEl.style.bottom = '68px';
+      return;
+    }
+    if (!triggerBtn) {
+      popoverEl.style.left = '50%';
+      popoverEl.style.transform = 'translateX(-50%)';
+      popoverEl.style.bottom = '68px';
+      return;
+    }
+    const rect = triggerBtn.getBoundingClientRect();
+    const popoverWidth = popoverEl.offsetWidth || 300;
+    let targetLeft = rect.left + rect.width / 2;
+    const minLeft = popoverWidth / 2 + 10;
+    const maxLeft = window.innerWidth - popoverWidth / 2 - 10;
+    targetLeft = Math.max(minLeft, Math.min(maxLeft, targetLeft));
+    popoverEl.style.left = `${targetLeft}px`;
+    popoverEl.style.transform = 'translateX(-50%)';
+    popoverEl.style.bottom = `${Math.max(68, window.innerHeight - rect.top + 8)}px`;
+  }
+
+  function togglePopover(popoverEl, triggerBtn) {
+    if (!popoverEl) return;
+    const wasOpen = popoverEl.classList.contains('open') || popoverEl.classList.contains('active');
+    dismissAllPopovers();
+    if (!wasOpen) {
+      popoverEl.classList.add('open');
+      popoverEl.classList.add('active');
+      if (triggerBtn) {
+        triggerBtn.classList.add('popover-active');
+        const parentContainer = triggerBtn.closest('.popover-container, .dropdown-wrapper');
+        if (parentContainer) {
+          parentContainer.classList.add('open');
+          parentContainer.classList.add('active');
+        }
+      }
+      alignPopoverToTrigger(popoverEl, triggerBtn);
+    }
+  }
+
   function dismissAllPopovers() {
+    document.querySelectorAll('.popover-menu').forEach((m) => {
+      m.classList.remove('open');
+      m.classList.remove('active');
+    });
+    document.querySelectorAll('.dropdown-menu').forEach((m) => {
+      m.classList.remove('open');
+      m.classList.remove('active');
+    });
     document.querySelectorAll('.popover-container').forEach((c) => c.classList.remove('open'));
     document.querySelectorAll('.dropdown-wrapper').forEach((d) => d.classList.remove('active'));
+    document.querySelectorAll('.dock-btn').forEach((b) => b.classList.remove('popover-active'));
   }
 
   let EMOJI_CATEGORIES = null;
 
   function setupPopovers() {
+    // Mount all popover menus outside the bottom dock to avoid transform containing blocks and overflow clipping on mobile
+    let mount = document.getElementById('canvasPopoversMount');
+    if (!mount) {
+      mount = document.createElement('div');
+      mount.id = 'canvasPopoversMount';
+      mount.className = 'canvas-popovers-mount';
+      const screen = document.getElementById('whiteboardScreen') || document.body;
+      screen.appendChild(mount);
+    }
+
+    const popoverIds = ['brushesPopover', 'eraserPopover', 'shapesPopover', 'colorPopover', 'reactionPopover', 'exportMenu'];
+    popoverIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement !== mount) {
+        mount.appendChild(el);
+      }
+    });
+
     if (roomModeBtn) {
       roomModeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -4470,11 +4541,9 @@
           showToast('🎓 Presentation Mode: Only Host can draw.', 'warning');
           return;
         }
-        const parent = brushPopoverBtn.closest('.popover-container');
-        const isOpen = parent ? parent.classList.contains('open') : false;
-        dismissAllPopovers();
-        if (!isOpen && parent) {
-          parent.classList.add('open');
+        const wasOpen = brushesPopover.classList.contains('open');
+        togglePopover(brushesPopover, brushPopoverBtn);
+        if (!wasOpen) {
           syncBrushSizeUI();
         }
         sound.playClick();
@@ -4551,11 +4620,9 @@
         }
         state.activeTool = 'eraser';
         updateActiveToolUI();
-        const parent = eraserPopoverBtn.closest('.popover-container');
-        const isOpen = parent ? parent.classList.contains('open') : false;
-        dismissAllPopovers();
-        if (!isOpen && parent) {
-          parent.classList.add('open');
+        const wasOpen = eraserPopover.classList.contains('open');
+        togglePopover(eraserPopover, eraserPopoverBtn);
+        if (!wasOpen) {
           syncEraserSizeUI();
         }
         sound.playClick();
@@ -4598,17 +4665,14 @@
       });
     }
 
-    if (shapePopoverBtn) {
+    if (shapePopoverBtn && shapesPopover) {
       shapePopoverBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (!canCurrentUserDraw()) {
           showToast('🎓 Presentation Mode: Only Host can draw shapes.', 'warning');
           return;
         }
-        const parent = shapePopoverBtn.closest('.popover-container');
-        const isOpen = parent ? parent.classList.contains('open') : false;
-        dismissAllPopovers();
-        if (!isOpen && parent) parent.classList.add('open');
+        togglePopover(shapesPopover, shapePopoverBtn);
         sound.playClick();
       });
     }
@@ -4626,8 +4690,8 @@
           shapesPopover.querySelectorAll('.shape-grid-btn, .popover-item').forEach((i) => i.classList.remove('active'));
           item.classList.add('active');
           const svg = item.querySelector('svg');
-          if (svg) activeShapeIcon.innerHTML = svg.outerHTML;
-          shapePopoverBtn.dataset.tool = tool;
+          if (svg && activeShapeIcon) activeShapeIcon.innerHTML = svg.outerHTML;
+          if (shapePopoverBtn) shapePopoverBtn.dataset.tool = tool;
           updateActiveToolUI();
           dismissAllPopovers();
           sound.playClick();
@@ -4635,13 +4699,14 @@
       });
     }
 
-    if (colorPopoverBtn) {
+    if (colorPopoverBtn && colorPopover) {
       colorPopoverBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const parent = colorPopoverBtn.closest('.popover-container');
-        const isOpen = parent ? parent.classList.contains('open') : false;
-        dismissAllPopovers();
-        if (!isOpen && parent) parent.classList.add('open');
+        const wasOpen = colorPopover.classList.contains('open');
+        togglePopover(colorPopover, colorPopoverBtn);
+        if (!wasOpen) {
+          syncColorPopoverUI();
+        }
         sound.playClick();
       });
     }
@@ -4712,72 +4777,74 @@
       });
     }
 
-    colorPopover.querySelectorAll('.ms-color-dot').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const selectedColor = btn.dataset.color;
-        if (state.activeColorSlot === 'color1') {
-          state.activeColor = selectedColor;
-          if (state.selectedElementId && canCurrentUserDraw()) {
-            const el = state.elements.find((item) => item.id === state.selectedElementId);
-            if (el) {
-              el.color = state.activeColor;
-              redrawBoard();
-              socket.emit('element:update', el);
+    if (colorPopover) {
+      colorPopover.querySelectorAll('.ms-color-dot').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const selectedColor = btn.dataset.color;
+          if (state.activeColorSlot === 'color1') {
+            state.activeColor = selectedColor;
+            if (state.selectedElementId && canCurrentUserDraw()) {
+              const el = state.elements.find((item) => item.id === state.selectedElementId);
+              if (el) {
+                el.color = state.activeColor;
+                redrawBoard();
+                socket.emit('element:update', el);
+              }
+            }
+          } else {
+            state.activeFillColor = selectedColor;
+            if (state.activeFillStyle === 'none') state.activeFillStyle = 'solid';
+            if (state.selectedElementId && canCurrentUserDraw()) {
+              const el = state.elements.find((item) => item.id === state.selectedElementId);
+              if (el && ALL_2D_SHAPES.includes(el.type)) {
+                el.fillColor = state.activeFillColor;
+                if (el.fillStyle === 'none') el.fillStyle = 'solid';
+                redrawBoard();
+                socket.emit('element:update', el);
+              }
             }
           }
-        } else {
-          state.activeFillColor = selectedColor;
-          if (state.activeFillStyle === 'none') state.activeFillStyle = 'solid';
+          syncColorPopoverUI();
+          sound.playClick();
+        });
+      });
+
+      colorPopover.querySelectorAll('.fill-style-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.activeFillStyle = btn.dataset.fill;
+          syncColorPopoverUI();
           if (state.selectedElementId && canCurrentUserDraw()) {
             const el = state.elements.find((item) => item.id === state.selectedElementId);
             if (el && ALL_2D_SHAPES.includes(el.type)) {
-              el.fillColor = state.activeFillColor;
-              if (el.fillStyle === 'none') el.fillStyle = 'solid';
+              el.fillStyle = state.activeFillStyle;
+              if (state.activeFillStyle !== 'none' && !el.fillColor) el.fillColor = state.activeFillColor;
               redrawBoard();
               socket.emit('element:update', el);
             }
           }
-        }
-        syncColorPopoverUI();
-        sound.playClick();
+          sound.playClick();
+        });
       });
-    });
 
-    colorPopover.querySelectorAll('.fill-style-btn').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        state.activeFillStyle = btn.dataset.fill;
-        syncColorPopoverUI();
-        if (state.selectedElementId && canCurrentUserDraw()) {
-          const el = state.elements.find((item) => item.id === state.selectedElementId);
-          if (el && ALL_2D_SHAPES.includes(el.type)) {
-            el.fillStyle = state.activeFillStyle;
-            if (state.activeFillStyle !== 'none' && !el.fillColor) el.fillColor = state.activeFillColor;
-            redrawBoard();
-            socket.emit('element:update', el);
+      colorPopover.querySelectorAll('.width-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.activeWidth = parseInt(btn.dataset.width, 10);
+          syncColorPopoverUI();
+          if (state.selectedElementId && canCurrentUserDraw()) {
+            const el = state.elements.find((item) => item.id === state.selectedElementId);
+            if (el) {
+              el.width = state.activeWidth;
+              redrawBoard();
+              socket.emit('element:update', el);
+            }
           }
-        }
-        sound.playClick();
+          sound.playClick();
+        });
       });
-    });
-
-    colorPopover.querySelectorAll('.width-btn').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        state.activeWidth = parseInt(btn.dataset.width, 10);
-        syncColorPopoverUI();
-        if (state.selectedElementId && canCurrentUserDraw()) {
-          const el = state.elements.find((item) => item.id === state.selectedElementId);
-          if (el) {
-            el.width = state.activeWidth;
-            redrawBoard();
-            socket.emit('element:update', el);
-          }
-        }
-        sound.playClick();
-      });
-    });
+    }
 
     // --- Rich Emoji Reaction Catalog & Bubble Popover Engine ---
     EMOJI_CATEGORIES = [
@@ -5334,24 +5401,27 @@
       });
     }
 
-    // Hover Bubble Pop-Up Behavior
+    // Hover Bubble Pop-Up Behavior on Desktop
     if (reactionPopoverContainer) {
       reactionPopoverContainer.addEventListener('mouseenter', () => {
         if (reactionHoverCloseTimer) {
           clearTimeout(reactionHoverCloseTimer);
           reactionHoverCloseTimer = null;
         }
-        if (window.matchMedia('(hover: hover)').matches && !reactionPopoverContainer.classList.contains('open')) {
+        if (window.matchMedia('(hover: hover)').matches && !reactionPopover.classList.contains('open')) {
           dismissAllPopovers();
-          reactionPopoverContainer.classList.add('open');
+          togglePopover(reactionPopover, reactionPopoverBtn);
         }
       });
 
       reactionPopoverContainer.addEventListener('mouseleave', () => {
         if (window.matchMedia('(hover: hover)').matches) {
           reactionHoverCloseTimer = setTimeout(() => {
-            reactionPopoverContainer.classList.remove('open');
-          }, 280);
+            if (reactionPopover) {
+              reactionPopover.classList.remove('open');
+              reactionPopover.classList.remove('active');
+            }
+          }, 350);
         }
       });
     }
@@ -5360,11 +5430,7 @@
       reactionPopoverBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (reactionHoverCloseTimer) clearTimeout(reactionHoverCloseTimer);
-        const isOpen = reactionPopoverContainer ? reactionPopoverContainer.classList.contains('open') : false;
-        dismissAllPopovers();
-        if (!isOpen && reactionPopoverContainer) {
-          reactionPopoverContainer.classList.add('open');
-        }
+        togglePopover(reactionPopover, reactionPopoverBtn);
         sound.playClick();
       });
     }
@@ -5378,10 +5444,10 @@
     }
 
     // Protect all popovers and dropdown menus from click bubbling
-    document.querySelectorAll('.popover-menu, .dropdown-menu').forEach((menu) => {
-      menu.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
+    document.querySelectorAll('.popover-menu, .dropdown-menu, #canvasPopoversMount').forEach((menu) => {
+      menu.addEventListener('click', (e) => e.stopPropagation());
+      menu.addEventListener('pointerdown', (e) => e.stopPropagation());
+      menu.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
     });
 
     // Dismiss Popovers on Outside Click
@@ -5392,9 +5458,18 @@
         !e.target.closest('.popover-menu') &&
         !e.target.closest('.dropdown-menu') &&
         !e.target.closest('.chat-floating-tab') &&
-        !e.target.closest('.chatspace-panel')
+        !e.target.closest('.chatspace-panel') &&
+        !e.target.closest('#canvasPopoversMount')
       ) {
         dismissAllPopovers();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      const openPopover = document.querySelector('.popover-menu.open, .dropdown-menu.open, .dropdown-menu.active');
+      if (openPopover) {
+        const activeBtn = document.querySelector('.dock-btn.popover-active');
+        alignPopoverToTrigger(openPopover, activeBtn);
       }
     });
   }
@@ -5551,7 +5626,8 @@
   // High-Res Export (2x HD) & JSON
   exportBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    exportMenu.parentElement.classList.toggle('active');
+    togglePopover(exportMenu, exportBtn);
+    sound.playClick();
   });
 
   function generateExportCanvas(scale = 2) {
@@ -7076,19 +7152,19 @@
 
   function updateCollaboratorsUI() {
     collaboratorStack.innerHTML = '';
-    const maxVisible = 4;
-    let count = 0;
 
     const isSelfOnline = socket && socket.connected && navigator.onLine;
     const isSelfPrimary = isCurrentUserPrimaryHost();
     const isSelfCoHost = isCurrentUserCoHost();
+    const totalInRoom = state.collaborators.size + 1;
 
-    // Self Avatar
+    // Single Profile & Room Members Hub Avatar in Top Nav
     const selfAv = document.createElement('div');
-    selfAv.className = 'collaborator-avatar';
-    selfAv.style.setProperty('--c', state.user.color);
+    selfAv.className = 'collaborator-avatar nav-single-profile-avatar';
+    selfAv.id = 'navProfileAvatar';
+    selfAv.style.setProperty('--c', state.user.color || '#FF6B4A');
     setAvatarElement(selfAv, state.user.avatar, (state.user.name || 'Y').charAt(0).toUpperCase());
-    selfAv.title = `${state.user.name || state.user.username} (You)${isSelfPrimary ? ' 👑 Primary Host' : (isSelfCoHost ? ' ⭐ Co-Host' : '')} — Click to Manage Hosts`;
+    selfAv.title = `${state.user.name || state.user.username || 'You'} (You)${isSelfPrimary ? ' 👑 Primary Host' : (isSelfCoHost ? ' ⭐ Co-Host' : '')} · ${totalInRoom} in room — Click to view participants & roles`;
 
     // Host / Co-Host Crown / Star Badge
     if (isSelfPrimary) {
@@ -7110,92 +7186,31 @@
     selfStatus.className = `avatar-status-dot ${isSelfOnline ? 'online' : 'offline'}`;
     selfAv.appendChild(selfStatus);
 
+    // Participant count pill badge when > 1 participant in room
+    if (totalInRoom > 1) {
+      const countBadge = document.createElement('span');
+      countBadge.className = 'collaborator-count-pill';
+      countBadge.textContent = `👥 ${totalInRoom}`;
+      countBadge.title = `${totalInRoom} participants in room`;
+      selfAv.appendChild(countBadge);
+    }
+
     // Instant Name Tooltip on Cursor Hover
     const selfTooltip = document.createElement('div');
     selfTooltip.className = 'avatar-name-tooltip';
-    selfTooltip.innerHTML = `${isSelfPrimary ? '👑 ' : (isSelfCoHost ? '⭐ ' : '')}<span>${state.user.name || state.user.username} (You)</span>`;
+    selfTooltip.innerHTML = `${isSelfPrimary ? '👑 ' : (isSelfCoHost ? '⭐ ' : '')}<span>${state.user.name || state.user.username || 'You'} (${totalInRoom} in room)</span>`;
     selfAv.appendChild(selfTooltip);
 
+    // Click opens full participants modal (Room Members & Roles Hub)
     selfAv.addEventListener('click', (e) => {
       e.stopPropagation();
       openManageHostsModal();
     });
 
     collaboratorStack.appendChild(selfAv);
-    count++;
-
-    state.collaborators.forEach((peer) => {
-      if (count < maxVisible) {
-        const isPeerOnline = peer.isOffline !== true;
-        const isPeerPrimary = state.hostSessionId && peer.sessionId === state.hostSessionId;
-        const isPeerCo = !!(state.coHostSessionIds && state.coHostSessionIds.has(peer.sessionId));
-
-        const av = document.createElement('div');
-        av.className = 'collaborator-avatar';
-        av.style.setProperty('--c', peer.color || '#FF6B4A');
-        setAvatarElement(av, peer.avatar, (peer.name || 'C').charAt(0).toUpperCase());
-        av.title = `${peer.name}${isPeerPrimary ? ' 👑 Primary Host' : (isPeerCo ? ' ⭐ Co-Host' : '')} — ${isPeerOnline ? 'Connected' : 'Offline'}`;
-
-        // Host / Co-Host Badge
-        if (isPeerPrimary) {
-          const crown = document.createElement('span');
-          crown.className = 'avatar-crown-badge';
-          crown.textContent = '👑';
-          crown.title = 'Primary Host';
-          av.appendChild(crown);
-        } else if (isPeerCo) {
-          const star = document.createElement('span');
-          star.className = 'avatar-crown-badge';
-          star.textContent = '⭐';
-          star.title = 'Co-Host';
-          av.appendChild(star);
-        }
-
-        // Status dot badge
-        const peerStatus = document.createElement('span');
-        peerStatus.className = `avatar-status-dot ${isPeerOnline ? 'online' : 'offline'}`;
-        av.appendChild(peerStatus);
-
-        // Instant Name Tooltip on Cursor Hover
-        const peerTooltip = document.createElement('div');
-        peerTooltip.className = 'avatar-name-tooltip';
-        peerTooltip.innerHTML = `${isPeerPrimary ? '👑 ' : (isPeerCo ? '⭐ ' : '')}<span>${peer.name || 'Collaborator'}</span>`;
-        av.appendChild(peerTooltip);
-
-        av.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const totalInRoom = state.collaborators.size + 1;
-          if (totalInRoom > 3) {
-            openManageHostsModal();
-          } else {
-            if (peer.cursor) {
-              smoothFlyTo(peer.cursor.x, peer.cursor.y);
-              showToast(`Following ${peer.name}`);
-              sound.playClick();
-            } else {
-              openManageHostsModal();
-            }
-          }
-        });
-        collaboratorStack.appendChild(av);
-      }
-      count++;
-    });
-
-    if (count > maxVisible) {
-      const extra = document.createElement('div');
-      extra.className = 'collaborator-avatar avatar-count';
-      extra.textContent = `+${count - maxVisible}`;
-      extra.title = 'Click to view all participants & manage hosts';
-      extra.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openManageHostsModal();
-      });
-      collaboratorStack.appendChild(extra);
-    }
 
     if (chatOnlineStatus) {
-      chatOnlineStatus.textContent = isSelfOnline ? `🟢 ${count} online in room` : '🔴 Disconnected';
+      chatOnlineStatus.textContent = isSelfOnline ? `🟢 ${totalInRoom} online in room` : '🔴 Disconnected';
     }
   }
 

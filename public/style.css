@@ -1493,16 +1493,18 @@ html, body {
 .collaborator-stack {
   display: flex;
   align-items: center;
-  padding: 4px 6px 0 6px;
+  justify-content: center;
+  padding: 0 4px;
   overflow: visible;
+  flex-shrink: 0;
 }
 
 .collaborator-avatar {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: var(--border-medium);
-  margin-left: -6px;
+  margin-left: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1512,9 +1514,33 @@ html, body {
   position: relative;
   background-color: var(--c, #FF6B4A);
   box-shadow: var(--shadow-sm);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
   cursor: pointer;
   overflow: visible;
+  flex-shrink: 0;
+}
+
+.collaborator-avatar:hover {
+  transform: scale(1.08);
+  box-shadow: var(--shadow-md);
+}
+
+.collaborator-count-pill {
+  position: absolute;
+  top: -5px;
+  right: -8px;
+  background: #8B5CF6;
+  color: #FFFFFF;
+  font-size: 0.62rem;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 5px;
+  border: 1.5px solid #FFFFFF;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 1.2;
+  z-index: 10;
 }
 
 .avatar-status-dot {
@@ -2128,23 +2154,25 @@ html, body {
 .reaction-trigger-emoji { font-size: 1.2rem; }
 
 .popover-menu {
-  position: absolute;
-  bottom: 64px;
+  position: fixed;
+  bottom: 74px;
   left: 50%;
   transform: translateX(-50%) translateY(8px);
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
+  display: none;
   border-radius: var(--radius-lg);
   background: var(--bg-white);
   border: var(--border-black);
   box-shadow: var(--shadow-lg);
   padding: 10px;
-  z-index: 250;
-  display: flex;
+  z-index: 1000;
   flex-direction: column;
   gap: 4px;
   transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   min-width: 170px;
+  max-width: calc(100vw - 16px);
 }
 
 .bottom-dock .dropdown-menu {
@@ -2179,10 +2207,14 @@ html, body {
   border-color: #EF4444 !important;
 }
 
+.popover-menu.open,
+.popover-menu.active,
 .popover-container.open .popover-menu {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(-50%) translateY(0);
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+  display: flex !important;
+  transform: translateX(-50%) translateY(0) !important;
 }
 
 .popover-label {
@@ -6005,15 +6037,19 @@ html, body {
     left: 50% !important;
     transform: translateX(-50%) translateY(8px) !important;
     max-width: calc(100vw - 16px) !important;
-    z-index: 500 !important;
-    pointer-events: none;
-    opacity: 0;
-    visibility: hidden;
+    z-index: 1000 !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    display: none !important;
   }
+  .popover-menu.open,
+  .popover-menu.active,
   .popover-container.open .popover-menu {
     opacity: 1 !important;
     pointer-events: auto !important;
     visibility: visible !important;
+    display: flex !important;
     transform: translateX(-50%) translateY(0) !important;
   }
   .bottom-dock .dropdown-menu {
@@ -6022,7 +6058,7 @@ html, body {
     left: 50% !important;
     right: auto !important;
     transform: translateX(-50%) !important;
-    z-index: 500 !important;
+    z-index: 1000 !important;
   }
 
   /* Brushes Gallery on Mobile */
@@ -6153,7 +6189,7 @@ html, body {
 /* Very Small Mobile Phones (<= 480px) */
 @media (max-width: 480px) {
   .brand-title { font-size: 1.05rem; }
-  .collaborator-stack { display: none; }
+  .collaborator-stack { display: flex !important; }
   #clearBoardBtn { display: none; }
   .hero-secondary-btn { font-size: 0.78rem; }
   .avatar-picker-grid { grid-template-columns: repeat(4, 1fr); }
