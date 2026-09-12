@@ -2043,6 +2043,13 @@
   }
 
   function createTextBoxNode(el) {
+    if (!el.fontSize) {
+      el.fontSize = el.width ? Math.max(16, el.width * 5) : 20;
+    }
+    if (!el.color) {
+      el.color = state.activeColor || '#111827';
+    }
+
     const box = document.createElement('div');
     box.className = 'board-text-box';
     box.dataset.id = el.id;
@@ -2050,7 +2057,83 @@
     const header = document.createElement('div');
     header.className = 'board-text-header';
 
+    // Drag handle icon / label
+    const dragTag = document.createElement('span');
+    dragTag.className = 'board-text-drag-tag';
+    dragTag.title = 'Drag to move';
+    dragTag.innerHTML = `🔤`;
+    header.appendChild(dragTag);
+
+    // Font Size Stepper (-) [20px] (+)
+    const sizeMinusBtn = document.createElement('button');
+    sizeMinusBtn.type = 'button';
+    sizeMinusBtn.className = 'board-text-btn-size';
+    sizeMinusBtn.title = 'Decrease Text Size';
+    sizeMinusBtn.innerHTML = '−';
+
+    const sizeValBadge = document.createElement('span');
+    sizeValBadge.className = 'board-text-size-val';
+    sizeValBadge.textContent = `${el.fontSize}px`;
+
+    const sizePlusBtn = document.createElement('button');
+    sizePlusBtn.type = 'button';
+    sizePlusBtn.className = 'board-text-btn-size';
+    sizePlusBtn.title = 'Increase Text Size';
+    sizePlusBtn.innerHTML = '+';
+
+    header.appendChild(sizeMinusBtn);
+    header.appendChild(sizeValBadge);
+    header.appendChild(sizePlusBtn);
+
+    // Separator
+    const sep1 = document.createElement('div');
+    sep1.className = 'board-text-sep';
+    header.appendChild(sep1);
+
+    // Color Swatches
+    const TEXT_COLORS = ['#111827', '#ED1C24', '#22B14C', '#00A2E8', '#8B5CF6', '#FF7F27', '#FBBF24'];
+    const colorDotsWrap = document.createElement('div');
+    colorDotsWrap.className = 'board-text-colors-wrap';
+
+    TEXT_COLORS.forEach((colorHex) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = `board-text-color-dot ${el.color === colorHex ? 'active' : ''}`;
+      dot.dataset.color = colorHex;
+      dot.style.backgroundColor = colorHex;
+      dot.title = `Color: ${colorHex}`;
+
+      ['pointerdown', 'mousedown', 'pointerup', 'click'].forEach((evtType) => {
+        dot.addEventListener(evtType, (e) => e.stopPropagation());
+      });
+
+      dot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!canCurrentUserDraw()) {
+          showToast('🎓 Presentation Mode: Canvas is View-Only.', 'warning');
+          return;
+        }
+        el.color = colorHex;
+        textarea.style.color = colorHex;
+        colorDotsWrap.querySelectorAll('.board-text-color-dot').forEach((d) => d.classList.remove('active'));
+        dot.classList.add('active');
+        socket.emit('element:update', { id: el.id, color: el.color });
+        sound.playPop();
+      });
+
+      colorDotsWrap.appendChild(dot);
+    });
+
+    header.appendChild(colorDotsWrap);
+
+    // Separator
+    const sep2 = document.createElement('div');
+    sep2.className = 'board-text-sep';
+    header.appendChild(sep2);
+
+    // Delete Button
     const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
     deleteBtn.className = 'board-text-btn-delete';
     deleteBtn.innerHTML = '&times;';
     deleteBtn.title = 'Delete Text';
@@ -2076,16 +2159,43 @@
 
     const textarea = document.createElement('textarea');
     textarea.className = 'board-text-input';
-    textarea.placeholder = 'Type text...';
+    textarea.placeholder = 'Type text here...';
     textarea.value = el.text || '';
-    textarea.style.color = el.color || state.activeColor;
-    textarea.style.fontSize = `${Math.max(16, (el.width || 3) * 5)}px`;
+    textarea.style.color = el.color;
+    textarea.style.fontSize = `${el.fontSize}px`;
     textarea.rows = 1;
 
     function autoResize() {
       textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
+      textarea.style.height = `${Math.max(30, textarea.scrollHeight)}px`;
     }
+
+    sizeMinusBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!canCurrentUserDraw()) return;
+      el.fontSize = Math.max(12, (el.fontSize || 20) - 3);
+      textarea.style.fontSize = `${el.fontSize}px`;
+      sizeValBadge.textContent = `${el.fontSize}px`;
+      autoResize();
+      socket.emit('element:update', { id: el.id, fontSize: el.fontSize });
+      sound.playClick();
+    });
+
+    sizePlusBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!canCurrentUserDraw()) return;
+      el.fontSize = Math.min(72, (el.fontSize || 20) + 3);
+      textarea.style.fontSize = `${el.fontSize}px`;
+      sizeValBadge.textContent = `${el.fontSize}px`;
+      autoResize();
+      socket.emit('element:update', { id: el.id, fontSize: el.fontSize });
+      sound.playClick();
+    });
+
+    ['pointerdown', 'mousedown', 'pointerup', 'click'].forEach((evtType) => {
+      sizeMinusBtn.addEventListener(evtType, (e) => e.stopPropagation());
+      sizePlusBtn.addEventListener(evtType, (e) => e.stopPropagation());
+    });
 
     ['pointerdown', 'mousedown', 'keydown'].forEach((evtType) => {
       textarea.addEventListener(evtType, (e) => e.stopPropagation());
@@ -2097,7 +2207,7 @@
       autoResize();
       el.text = textarea.value;
       clearTimeout(typingTimeout);
-      typingTimeout = setTimeout(() => socket.emit('element:update', { id: el.id, text: el.text }), 150);
+      typingTimeout = setTimeout(() => socket.emit('element:update', { id: el.id, text: el.text, fontSize: el.fontSize, color: el.color }), 150);
     });
 
     textarea.addEventListener('focus', () => {
@@ -2107,6 +2217,7 @@
         return;
       }
       box.classList.add('active');
+      autoResize();
     });
     textarea.addEventListener('blur', () => box.classList.remove('active'));
 
@@ -2118,7 +2229,7 @@
     let initialWorldPos = { x: el.x, y: el.y };
 
     box.addEventListener('pointerdown', (e) => {
-      if (e.target === textarea || e.target.closest('.board-text-btn-delete')) return;
+      if (e.target === textarea || e.target.closest('.board-text-btn-delete') || e.target.closest('.board-text-btn-size') || e.target.closest('.board-text-color-dot')) return;
       if (!canCurrentUserDraw()) return;
       isDragging = true;
       dragStartPos = { x: e.clientX, y: e.clientY };
@@ -6320,46 +6431,71 @@
     if (idx !== -1) state.elements[idx] = { ...state.elements[idx], ...updated };
     else state.elements.push(updated);
 
-    if (updated.type === 'sticky') {
+    const el = state.elements[idx] || updated;
+    const elType = (el && el.type) || updated.type;
+
+    if (elType === 'sticky') {
       let node = state.domElementsMap.get(updated.id);
-      if (!node) node = createStickyNoteNode(updated);
-      const textarea = node.querySelector('textarea');
-      if (textarea && textarea.value !== updated.text && document.activeElement !== textarea) {
-        textarea.value = updated.text || '';
-      }
-      if (updated.theme) node.className = `sticky-note-card theme-${updated.theme}`;
-      syncDomElementPosition(updated, node);
-    } else if (updated.type === 'text') {
-      let node = state.domElementsMap.get(updated.id);
-      if (!node) node = createTextBoxNode(updated);
-      const textarea = node.querySelector('textarea');
-      if (textarea && textarea.value !== updated.text && document.activeElement !== textarea) {
-        textarea.value = updated.text || '';
-      }
-      syncDomElementPosition(updated, node);
-    } else if (updated.type === 'code') {
-      let node = state.domElementsMap.get(updated.id);
-      if (!node) node = createCodeSnippetNode(updated);
-      const textarea = node.querySelector('.code-textarea');
-      if (textarea && textarea.value !== updated.code && document.activeElement !== textarea) {
-        textarea.value = updated.code || '';
-        const lineNums = node.querySelector('.code-line-numbers');
-        const footerLines = node.querySelector('.code-footer span:last-child');
-        if (lineNums) {
-          const count = (updated.code || '').split('\n').length;
-          lineNums.innerHTML = Array.from({ length: Math.max(1, count) }, (_, i) => i + 1).join('<br>');
-          if (footerLines) footerLines.textContent = `${count} ${count === 1 ? 'line' : 'lines'}`;
+      if (!node && el) node = createStickyNoteNode(el);
+      if (node) {
+        const textarea = node.querySelector('textarea');
+        if (textarea && updated.text !== undefined && textarea.value !== updated.text && document.activeElement !== textarea) {
+          textarea.value = updated.text || '';
         }
+        if (updated.theme) node.className = `sticky-note-card theme-${updated.theme}`;
+        syncDomElementPosition(el, node);
       }
-      const langSelect = node.querySelector('.code-lang-select');
-      if (langSelect && updated.language && langSelect.value !== updated.language) {
-        langSelect.value = updated.language;
+    } else if (elType === 'text') {
+      let node = state.domElementsMap.get(updated.id);
+      if (!node && el) node = createTextBoxNode(el);
+      if (node) {
+        const textarea = node.querySelector('textarea');
+        if (textarea) {
+          if (updated.text !== undefined && textarea.value !== updated.text && document.activeElement !== textarea) {
+            textarea.value = updated.text || '';
+          }
+          if (updated.fontSize) {
+            textarea.style.fontSize = `${updated.fontSize}px`;
+            const sizeBadge = node.querySelector('.board-text-size-val');
+            if (sizeBadge) sizeBadge.textContent = `${updated.fontSize}px`;
+          }
+          if (updated.color) {
+            textarea.style.color = updated.color;
+            node.querySelectorAll('.board-text-color-dot').forEach((d) => {
+              d.classList.toggle('active', d.dataset.color === updated.color);
+            });
+          }
+          // Auto-resize height so all multi-line text is visible
+          textarea.style.height = 'auto';
+          textarea.style.height = `${Math.max(30, textarea.scrollHeight)}px`;
+        }
+        syncDomElementPosition(el, node);
       }
-      const filenameInput = node.querySelector('.code-filename-input');
-      if (filenameInput && updated.filename && filenameInput.value !== updated.filename && document.activeElement !== filenameInput) {
-        filenameInput.value = updated.filename;
+    } else if (elType === 'code') {
+      let node = state.domElementsMap.get(updated.id);
+      if (!node && el) node = createCodeSnippetNode(el);
+      if (node) {
+        const textarea = node.querySelector('.code-textarea');
+        if (textarea && updated.code !== undefined && textarea.value !== updated.code && document.activeElement !== textarea) {
+          textarea.value = updated.code || '';
+          const lineNums = node.querySelector('.code-line-numbers');
+          const footerLines = node.querySelector('.code-footer span:last-child');
+          if (lineNums) {
+            const count = (updated.code || '').split('\n').length;
+            lineNums.innerHTML = Array.from({ length: Math.max(1, count) }, (_, i) => i + 1).join('<br>');
+            if (footerLines) footerLines.textContent = `${count} ${count === 1 ? 'line' : 'lines'}`;
+          }
+        }
+        const langSelect = node.querySelector('.code-lang-select');
+        if (langSelect && updated.language && langSelect.value !== updated.language) {
+          langSelect.value = updated.language;
+        }
+        const filenameInput = node.querySelector('.code-filename-input');
+        if (filenameInput && updated.filename && filenameInput.value !== updated.filename && document.activeElement !== filenameInput) {
+          filenameInput.value = updated.filename;
+        }
+        syncDomElementPosition(el, node);
       }
-      syncDomElementPosition(updated, node);
     } else {
       redrawBoard();
     }
@@ -6374,6 +6510,16 @@
         if (updated.type === 'sticky') createStickyNoteNode(updated);
         else if (updated.type === 'text') createTextBoxNode(updated);
         else if (updated.type === 'code') createCodeSnippetNode(updated);
+      }
+      if (updated.type === 'text') {
+        const node = state.domElementsMap.get(updated.id);
+        if (node) {
+          const textarea = node.querySelector('textarea');
+          if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${Math.max(30, textarea.scrollHeight)}px`;
+          }
+        }
       }
     });
     redrawBoard();
