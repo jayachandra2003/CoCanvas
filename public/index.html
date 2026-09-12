@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CoCanvas — Real-Time Collaborative Whiteboard</title>
+  
+  <link rel="icon" type="image/png" href="logo.png" />
+  <link rel="apple-touch-icon" href="logo.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    
+    <!-- ============================================== -->
+    <!-- 1. PROFESSIONAL LANDING SCREEN (Skribbl-Inspired) -->
+    <!-- ============================================== -->
+    <div id="landingScreen" class="landing-screen active">
+      
+      <!-- Landing Header -->
+      <header class="landing-header">
+        <div class="brand">
+          <div class="brand-icon">
+            <img src="logo.png" alt="CoCanvas Logo" class="brand-logo-img" />
+          </div>
+          <span class="brand-title"><span class="brand-co-gradient">Co</span>Canvas</span>
+        </div>
+
+        <div class="landing-header-right">
+          <!-- Interactive Hanging Lightbulb Theme Switch -->
+          <div class="hanging-lamp-wrap" id="landingThemeToggleBtn" title="Click or pull the bulb to toggle theme!" role="button" tabindex="0">
+            <div class="hanging-wire"></div>
+            <div class="lamp-fixture">
+              <div class="lamp-socket"></div>
+              <div class="lamp-bulb-glass">
+                <svg class="lamp-bulb-svg" viewBox="0 0 48 56" width="42" height="50">
+                  <defs>
+                    <radialGradient id="bulbGlassGrad" cx="50%" cy="45%" r="55%">
+                      <stop offset="0%" stop-color="#FFFBEB" stop-opacity="1"/>
+                      <stop offset="55%" stop-color="#FDE68A" stop-opacity="0.9"/>
+                      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.2"/>
+                    </radialGradient>
+                    <radialGradient id="bulbDarkGlassGrad" cx="45%" cy="40%" r="60%">
+                      <stop offset="0%" stop-color="rgba(255, 255, 255, 0.28)"/>
+                      <stop offset="45%" stop-color="rgba(51, 65, 85, 0.55)"/>
+                      <stop offset="100%" stop-color="rgba(15, 23, 42, 0.85)"/>
+                    </radialGradient>
+                  </defs>
+                  <!-- Bulb Body -->
+                  <path class="bulb-body-shape" d="M16 8 C16 3, 32 3, 32 8 C32 16, 44 20, 44 32 C44 43, 35 51, 24 51 C13 51, 4 43, 4 32 C4 20, 16 16, 16 8 Z"/>
+                  <!-- Glass 3D Gloss Highlight Arc -->
+                  <path class="bulb-gloss-arc" d="M10 26 C9 33, 12 41, 16 45" fill="none" stroke-width="2.2" stroke-linecap="round"/>
+                  <!-- Internal Tungsten Filament -->
+                  <path class="bulb-filament-line" d="M19 14 L19 26 L22 20 L24 27 L26 20 L29 26 L29 14" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <div class="lamp-light-bloom"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Center Hero Container -->
+      <main class="landing-main">
+        <!-- Middle Box (Classic Neo-Brutalist Entry Card) -->
+        <div class="hero-entry-card animate-pop">
+          
+          <div class="hero-card-header">
+            <h1 class="hero-welcome-title">Welcome,</h1>
+            <p class="hero-welcome-subtitle">draw & collaborate in real-time</p>
+          </div>
+
+          <!-- Name Input with Dice Randomizer -->
+          <div class="entry-input-group">
+            <label for="landingNameInput">Enter Your Name</label>
+            <div class="input-with-action">
+              <input type="text" id="landingNameInput" placeholder="Type your name here..." maxlength="20" />
+              <button class="btn-text-action" id="btnRandomizeLandingName" title="Randomize Name">🎲</button>
+            </div>
+          </div>
+
+          <!-- Interactive Avatar Carousel with Custom Photo Upload & Gallery -->
+          <div class="avatar-carousel-container">
+            <div class="avatar-carousel-header">
+              <label>Choose Avatar or Photo</label>
+              <button type="button" class="btn-gallery-trigger" id="btnBrowseAvatars" title="Browse full gallery">🎭 View All</button>
+            </div>
+            
+            <div class="avatar-carousel">
+              <button type="button" class="carousel-arrow-btn" id="btnPrevAvatar" title="Previous Avatar">‹</button>
+              <div class="avatar-preview-circle" id="landingAvatarPreview" style="--c: #FF6B4A;" title="Click to upload your own photo">
+                <div class="avatar-inner" id="landingAvatarInner">
+                  <span class="avatar-emoji-main" id="landingAvatarEmoji">🦊</span>
+                </div>
+                <div class="avatar-camera-badge" id="landingAvatarCameraBadge" title="Upload Custom Photo">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#FFFFFF" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                </div>
+              </div>
+              <button type="button" class="carousel-arrow-btn" id="btnNextAvatar" title="Next Avatar">›</button>
+            </div>
+
+            <!-- Custom Avatar Upload Controls -->
+            <input type="file" id="landingAvatarFileInput" accept="image/*" class="hidden" />
+            <div class="avatar-upload-actions-row">
+              <button type="button" class="btn-avatar-upload" id="btnUploadCustomPhoto">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <span>Upload Custom Image</span>
+              </button>
+              <button type="button" class="btn-avatar-reset hidden" id="btnResetCustomAvatar" title="Switch back to presets">✕ Reset</button>
+            </div>
+
+            <!-- Cursor Color Selector Dots -->
+            <div class="landing-color-dots" id="landingColorDots">
+              <button class="landing-color-dot active" data-color="#FF6B4A" style="--c: #FF6B4A;" title="Coral Red"></button>
+              <button class="landing-color-dot" data-color="#F43F5E" style="--c: #F43F5E;" title="Rose Pink"></button>
+              <button class="landing-color-dot" data-color="#8B5CF6" style="--c: #8B5CF6;" title="Electric Purple"></button>
+              <button class="landing-color-dot" data-color="#38BDF8" style="--c: #38BDF8;" title="Sky Blue"></button>
+              <button class="landing-color-dot" data-color="#34D399" style="--c: #34D399;" title="Mint Green"></button>
+              <button class="landing-color-dot" data-color="#FBBF24" style="--c: #FBBF24;" title="Warm Amber"></button>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="hero-action-buttons">
+            <button class="hero-primary-btn" id="btnStartInstantCanvas">
+              <span id="btnStartCanvasText">Draw Now</span>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+
+            <div class="hero-secondary-row">
+              <button class="hero-secondary-btn" id="btnCreatePrivateRoom">
+                <span>🔒 Create Room</span>
+              </button>
+              <button class="hero-secondary-btn" id="btnOpenJoinCodeInput">
+                <span>🔗 Join Code</span>
+              </button>
+            </div>
+
+            <!-- Expandable Join Code Box -->
+            <div class="join-code-inline-box hidden" id="joinCodeInlineBox">
+              <input type="text" id="landingJoinCodeInput" placeholder="ENTER 6-CHAR CODE" maxlength="12" class="code-input" />
+              <button class="btn-inline-join" id="btnSubmitJoinCode">Join</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Skribbl-Inspired 3-Column Info Section Under Main Box -->
+        <section class="landing-info-section">
+          
+          <!-- Column 1: About -->
+          <div class="landing-info-card info-about-card">
+            <div class="landing-info-title-row">
+              <span class="info-title-icon">❓</span>
+              <h3>About</h3>
+            </div>
+            <div class="info-card-content">
+              <p><strong>CoCanvas</strong> is a free, instant real-time collaborative whiteboard and visual canvas.</p>
+              <p>Create multiplayer rooms in 1 click, sketch diagrams, brainstorm ideas with sticky notes, and draw in pure 60fps vector graphics without login friction!</p>
+              <p>Enjoy laser pointers, live cursor chat, prebuilt templates, and 2x HD Retina export. Have fun collaborating!</p>
+            </div>
+          </div>
+
+          <!-- Column 2: News / Updates -->
+          <div class="landing-info-card info-news-card">
+            <div class="landing-info-title-row">
+              <span class="info-title-icon">📟</span>
+              <h3>News & Updates</h3>
+            </div>
+            <div class="info-card-content news-content">
+              <div class="news-release-header">
+                <span class="news-release-title">Fresh Paint</span>
+                <span class="news-release-date">Version 2.0</span>
+              </div>
+              <ul class="news-updates-list">
+                <li>⚡ <strong>60fps Vector Canvas</strong> with sub-millisecond sync</li>
+                <li>🌙 <strong>Full Dark Mode</strong> & Light Mode theme toggle</li>
+                <li>🎭 <strong>24 Curated Avatars</strong> + custom photo upload</li>
+                <li>🪄 <strong>Laser Pointer</strong> & Figma-style cursor chat</li>
+                <li>📋 <strong>Prebuilt Templates</strong>: Kanban, Matrix & Retro</li>
+                <li>📸 <strong>2x HD Retina PNG</strong> & JSON export/import</li>
+                <li>🔒 <strong>1-Click Invite Links</strong> & private room codes</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Column 3: How it works -->
+          <div class="landing-info-card info-guide-card">
+            <div class="landing-info-title-row">
+              <span class="info-title-icon">✏️</span>
+              <h3>How it works</h3>
+            </div>
+            <div class="info-card-content guide-content">
+              <div class="guide-step-item">
+                <span class="guide-step-num">1</span>
+                <div class="guide-step-text">
+                  <strong>Pick Avatar & Name</strong>
+                  <p>Choose an avatar or upload your own custom photo.</p>
+                </div>
+              </div>
+              <div class="guide-step-item">
+                <span class="guide-step-num">2</span>
+                <div class="guide-step-text">
+                  <strong>Start Instant Canvas</strong>
+                  <p>Create a room or join friends with a 6-character code.</p>
+                </div>
+              </div>
+              <div class="guide-step-item">
+                <span class="guide-step-num">3</span>
+                <div class="guide-step-text">
+                  <strong>Draw & Brainstorm</strong>
+                  <p>Use pen, shapes, sticky notes, laser pointer & chat.</p>
+                </div>
+              </div>
+              <div class="guide-step-item">
+                <span class="guide-step-num">4</span>
+                <div class="guide-step-text">
+                  <strong>Export in 2x HD</strong>
+                  <p>Download crisp 2x Retina PNGs or JSON backups.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </main>
+
+      <footer class="landing-footer">
+        <span>Built by Jaya Chandra Vennam   © 2026 CoCanvas | All Rights Reserved</span>
+      </footer>
+    </div>
+
+
+    <!-- ============================================== -->
+    <!-- 2. WHITEBOARD CANVAS SCREEN (Full Active App)  -->
+    <!-- ============================================== -->
+    <div id="whiteboardScreen" class="whiteboard-screen">
+      
+      <!-- Top Navigation Bar -->
+      <header class="top-nav glass-panel">
+        <div class="nav-left">
+          <div class="brand">
+            <div class="brand-icon">
+              <img src="logo.png" alt="CoCanvas Logo" class="brand-logo-img" />
+            </div>
+            <span class="brand-title"><span class="brand-co-gradient">Co</span>Canvas</span>
+          </div>
+
+          <div class="room-pill" id="roomPillBtn" title="Click to copy room code">
+            <span class="live-dot"></span>
+            <span class="room-label">Room:</span>
+            <span class="room-code-display" id="currentRoomCode">------</span>
+            <svg class="copy-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </div>
+
+          <!-- Exit Room Button -->
+          <button class="nav-btn exit-room-btn" id="btnExitRoom" title="Exit Room">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Exit</span>
+          </button>
+        </div>
+
+        <div class="nav-right">
+          <!-- Collaborator Avatars (Click to fly camera) -->
+          <div class="collaborator-stack" id="collaboratorStack" title="Click teammate to follow their view"></div>
+
+          <div class="nav-actions">
+
+
+            <!-- Dark / Light Theme Toggle -->
+            <button class="nav-btn icon-btn" id="canvasThemeToggleBtn" title="Toggle Light / Dark Mode">
+              <span id="canvasThemeIcon">🌙</span>
+            </button>
+
+            <!-- Grid Style Toggle -->
+            <button class="nav-btn icon-btn" id="gridStyleToggleBtn" title="Toggle Grid Mode">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+            </button>
+
+
+
+            <!-- Export Dropdown -->
+            <div class="dropdown-wrapper">
+              <button class="nav-btn icon-btn" id="exportBtn" title="Export Whiteboard">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </button>
+              <div class="dropdown-menu glass-panel" id="exportMenu">
+                <button class="dropdown-item" id="exportPngBtn">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><polyline points="21 15 16 10 5 21"></polyline></svg>
+                  <span>Export PNG (2x HD)</span>
+                </button>
+                <button class="dropdown-item" id="exportPdfBtn">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                  <span>Export PDF</span>
+                </button>
+                <button class="dropdown-item" id="exportDocxBtn">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                  <span>Export DOCS (.docx)</span>
+                </button>
+                <button class="dropdown-item" id="exportJsonBtn">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                  <span>Export JSON Data</span>
+                </button>
+                <label class="dropdown-item" id="importJsonLabel">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline></svg>
+                  <span>Import JSON</span>
+                  <input type="file" id="importJsonInput" accept=".json" style="display:none;" />
+                </label>
+              </div>
+            </div>
+
+            <button class="nav-btn" id="clearBoardBtn" title="Clear Canvas">
+              <span>Clear Canvas</span>
+            </button>
+
+            <button class="nav-btn icon-btn" id="shortcutsNavBtn" title="Keyboard Shortcuts">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="20" height="14" x="2" y="5" rx="2.5"></rect>
+                <line x1="6" x2="6.01" y1="9" y2="9" stroke-width="2.5"></line>
+                <line x1="10" x2="10.01" y1="9" y2="9" stroke-width="2.5"></line>
+                <line x1="14" x2="14.01" y1="9" y2="9" stroke-width="2.5"></line>
+                <line x1="18" x2="18.01" y1="9" y2="9" stroke-width="2.5"></line>
+                <line x1="7" x2="17" y1="14" y2="14" stroke-width="2.2"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Multi-Layer Canvas Hierarchy -->
+      <div id="canvasContainer" class="canvas-container">
+        <canvas id="gridCanvas" class="layer-canvas"></canvas>
+        <canvas id="board" class="layer-canvas"></canvas>
+        <canvas id="draftLayer" class="layer-canvas"></canvas>
+        <div id="domLayer" class="dom-layer"></div>
+        <canvas id="cursorLayer" class="layer-canvas vfx-layer"></canvas>
+
+        <!-- Selection Bounding Box Overlay -->
+        <div id="selectionBox" class="selection-box hidden">
+          <div class="selection-handle handle-nw" data-handle="nw"></div>
+          <div class="selection-handle handle-ne" data-handle="ne"></div>
+          <div class="selection-handle handle-se" data-handle="se"></div>
+          <div class="selection-handle handle-sw" data-handle="sw"></div>
+          <div class="selection-handle handle-n" data-handle="n"></div>
+          <div class="selection-handle handle-e" data-handle="e"></div>
+          <div class="selection-handle handle-s" data-handle="s"></div>
+          <div class="selection-handle handle-w" data-handle="w"></div>
+          <button class="selection-delete-btn" id="selectionDeleteBtn" title="Delete Element">&times;</button>
+        </div>
+
+        <!-- Local Cursor Chat Bubble -->
+        <div id="localCursorChat" class="cursor-chat-bubble hidden">
+          <input type="text" id="cursorChatInput" placeholder="Say something..." maxlength="60" />
+          <span class="cursor-chat-hint">Enter to send · Esc to cancel</span>
+        </div>
+      </div>
+
+      <!-- Minimap Radar -->
+      <div class="minimap-panel glass-panel" id="minimapPanel">
+        <div class="minimap-header">
+          <span class="minimap-title">MAP</span>
+          <button class="minimap-toggle-btn" id="minimapToggleBtn" title="Toggle Minimap">▾</button>
+        </div>
+        <div class="minimap-body" id="minimapBody">
+          <canvas id="minimapCanvas" width="180" height="110"></canvas>
+          <div id="minimapViewport" class="minimap-viewport"></div>
+        </div>
+      </div>
+
+      <!-- ChatSpace Right Sidebar Panel -->
+      <aside id="chatSpacePanel" class="chatspace-panel glass-panel collapsed">
+        <div class="chatspace-header">
+          <div class="chatspace-title-wrap">
+            <div class="chatspace-icon-badge">💬</div>
+            <div>
+              <div class="chatspace-title-row">
+                <h3 class="chatspace-title">ChatSpace</h3>
+                <span class="chatspace-live-pill" id="chatLivePill">LIVE</span>
+              </div>
+              <span class="chatspace-subtitle" id="chatOnlineStatus">🟢 Room Live</span>
+            </div>
+          </div>
+          <div class="chatspace-header-actions">
+            <button type="button" class="chat-header-btn" id="btnClearChatHistory" title="Clear chat history">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+            <button type="button" class="chat-collapse-btn" id="btnCollapseChat" title="Collapse into right wall">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Chat Messages Area -->
+        <div class="chatspace-messages" id="chatMessagesContainer">
+          <div class="chat-welcome-notice">
+            <div class="chat-welcome-icon-wrap">💬</div>
+            <strong class="chat-welcome-title">Welcome to ChatSpace!</strong>
+            <p class="chat-welcome-desc">Chat with collaborators, exchange thoughts, and discuss your canvas in real-time.</p>
+          </div>
+        </div>
+
+        <div class="chatspace-footer">
+          <!-- Quick Emoji Reactions Bar -->
+          <div class="chat-quick-emojis">
+            <button type="button" class="chat-emoji-btn" data-emoji="🔥" title="Fire">🔥</button>
+            <button type="button" class="chat-emoji-btn" data-emoji="❤️" title="Love">❤️</button>
+            <button type="button" class="chat-emoji-btn" data-emoji="🎉" title="Party">🎉</button>
+            <button type="button" class="chat-emoji-btn" data-emoji="🚀" title="Rocket">🚀</button>
+            <button type="button" class="chat-emoji-btn" data-emoji="👍" title="Thumbs Up">👍</button>
+            <button type="button" class="chat-emoji-btn" data-emoji="💡" title="Idea">💡</button>
+            <button type="button" class="chat-emoji-btn" data-emoji="😂" title="Laugh">😂</button>
+            <button type="button" class="chat-emoji-btn" data-emoji="💯" title="100">💯</button>
+          </div>
+
+          <!-- Chat Input Form -->
+          <form class="chat-input-form" id="chatInputForm">
+            <input type="text" id="chatMessageInput" class="chat-text-input" placeholder="Type a message..." maxlength="800" autocomplete="off" />
+
+            <button type="submit" class="chat-send-btn" id="btnSendChat" title="Send message (Enter)">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      <!-- ChatSpace Floating Wall Tab (Visible when collapsed) -->
+      <button class="chat-floating-tab" id="chatFloatingTab" title="Open ChatSpace">
+        <span class="chat-tab-icon">💬</span>
+        <span class="chat-tab-label">Chat</span>
+        <span class="chat-unread-badge hidden" id="chatUnreadBadge">0</span>
+      </button>
+
+      <input type="file" id="imageUploadInput" accept="image/*" style="display:none;" />
+
+      <!-- Bottom Floating Dock -->
+      <nav class="bottom-dock glass-panel">
+        <div class="dock-section">
+          <button class="dock-btn active" data-tool="select" id="toolSelect" title="Select & Move (V)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 2l14 11-6.5 1.5 4 7-2.5 1.5-4-7L4 20V2z"/></svg>
+            <span class="hotkey-indicator">V</span>
+          </button>
+
+          <button class="dock-btn" data-tool="laser" id="toolLaser" title="Laser Pointer (K)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+              <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"></path>
+            </svg>
+            <span class="hotkey-indicator">K</span>
+          </button>
+
+          <button class="dock-btn" data-tool="pen" id="toolPen" title="Smooth Pen (P)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+              <circle cx="11" cy="11" r="2"></circle>
+            </svg>
+            <span class="hotkey-indicator">P</span>
+          </button>
+
+          <button class="dock-btn" data-tool="highlighter" id="toolHighlighter" title="Highlighter (H)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 11l-6 6v3h3l6-6"></path>
+              <path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path>
+            </svg>
+            <span class="hotkey-indicator">H</span>
+          </button>
+
+          <button class="dock-btn" data-tool="eraser" id="toolEraser" title="Eraser (E)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L20 20Z"></path>
+            </svg>
+            <span class="hotkey-indicator">E</span>
+          </button>
+        </div>
+
+        <div class="dock-divider"></div>
+
+        <!-- Shapes Popover -->
+        <div class="dock-section popover-container">
+          <button class="dock-btn popover-trigger" id="shapePopoverBtn" data-tool="rect" title="Shapes (R, O, A, L)">
+            <span id="activeShapeIcon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>
+            </span>
+            <span class="chevron">▾</span>
+          </button>
+          <div class="popover-menu glass-panel" id="shapesPopover">
+            <button class="popover-item active" data-tool="rect" title="Rectangle (R)">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>
+              <span>Rectangle</span><kbd>R</kbd>
+            </button>
+            <button class="popover-item" data-tool="circle" title="Circle (O)">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle></svg>
+              <span>Circle</span><kbd>O</kbd>
+            </button>
+            <button class="popover-item" data-tool="arrow" title="Arrow (A)">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+              <span>Arrow</span><kbd>A</kbd>
+            </button>
+            <button class="popover-item" data-tool="line" title="Line (L)">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="4"></line></svg>
+              <span>Line</span><kbd>L</kbd>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sticky, Text, Image -->
+        <div class="dock-section">
+          <button class="dock-btn" data-tool="sticky" id="toolSticky" title="Sticky Note (S)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3z"></path></svg>
+            <span class="hotkey-indicator">S</span>
+          </button>
+
+          <button class="dock-btn" data-tool="text" id="toolText" title="Canvas Text Box (T)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+            <span class="hotkey-indicator">T</span>
+          </button>
+
+          <button class="dock-btn" data-tool="code" id="toolCode" title="Code Panel / Snippet (C)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+            <span class="hotkey-indicator">C</span>
+          </button>
+
+          <button class="dock-btn" id="toolImage" title="Insert Image / Drag & Drop">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            <span class="hotkey-indicator">I</span>
+          </button>
+        </div>
+
+        <div class="dock-divider"></div>
+
+        <!-- Colors Popover -->
+        <div class="dock-section popover-container">
+          <button class="dock-btn popover-trigger" id="colorPopoverBtn" title="Color & Stroke Style">
+            <span class="color-swatch-preview" id="activeColorDot" style="background-color: #FF6B4A;"></span>
+            <span class="chevron">▾</span>
+          </button>
+          <div class="popover-menu glass-panel palette-popover" id="colorPopover">
+            <div class="popover-label">Color Palette</div>
+            <div class="color-grid" id="colorGrid">
+              <button class="color-choice active" data-color="#FF6B4A" style="--c: #FF6B4A;"></button>
+              <button class="color-choice" data-color="#F43F5E" style="--c: #F43F5E;"></button>
+              <button class="color-choice" data-color="#8B5CF6" style="--c: #8B5CF6;"></button>
+              <button class="color-choice" data-color="#38BDF8" style="--c: #38BDF8;"></button>
+              <button class="color-choice" data-color="#34D399" style="--c: #34D399;"></button>
+              <button class="color-choice" data-color="#FBBF24" style="--c: #FBBF24;"></button>
+              <button class="color-choice" data-color="#FFFFFF" style="--c: #FFFFFF;"></button>
+              <button class="color-choice" data-color="#64748B" style="--c: #64748B;"></button>
+            </div>
+            <div class="popover-label">Stroke Width</div>
+            <div class="stroke-width-selector">
+              <button class="width-btn active" data-width="3">Fine (3px)</button>
+              <button class="width-btn" data-width="6">Medium (6px)</button>
+              <button class="width-btn" data-width="12">Thick (12px)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reactions Popover -->
+        <div class="dock-section popover-container">
+          <button class="dock-btn popover-trigger" id="reactionPopoverBtn" title="Emoji Reactions & Chat (/)">
+            <span class="reaction-trigger-emoji">🔥</span>
+            <span class="chevron">▾</span>
+          </button>
+          <div class="popover-menu glass-panel reaction-popover" id="reactionPopover">
+            <div class="popover-label">Quick Reactions</div>
+            <div class="reaction-grid">
+              <button class="reaction-item" data-emoji="🔥">🔥</button>
+              <button class="reaction-item" data-emoji="❤️">❤️</button>
+              <button class="reaction-item" data-emoji="🎉">🎉</button>
+              <button class="reaction-item" data-emoji="🚀">🚀</button>
+              <button class="reaction-item" data-emoji="👍">👍</button>
+            </div>
+            <div class="popover-divider"></div>
+            <button class="popover-chat-trigger" id="startCursorChatBtn">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              <span>Live Cursor Chat</span><kbd>/</kbd>
+            </button>
+          </div>
+        </div>
+
+        <div class="dock-divider"></div>
+
+        <!-- Undo / Redo -->
+        <div class="dock-section">
+          <button class="dock-btn" id="undoBtn" title="Undo (Ctrl+Z)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+          </button>
+          <button class="dock-btn" id="redoBtn" title="Redo (Ctrl+Y)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+          </button>
+        </div>
+
+        <div class="dock-divider"></div>
+
+        <!-- Zoom -->
+        <div class="dock-section zoom-controls">
+          <button class="dock-btn icon-small" id="zoomOutBtn" title="Zoom Out (-)">-</button>
+          <button class="dock-btn zoom-indicator" id="zoomResetBtn" title="Reset Zoom (Ctrl+0)"><span id="zoomLabel">100%</span></button>
+          <button class="dock-btn icon-small" id="zoomInBtn" title="Zoom In (+)">+</button>
+        </div>
+      </nav>
+
+    </div>
+
+
+    <!-- ============================================== -->
+    <!-- 3. AUTH & PROFILE MODALS                       -->
+    <!-- ============================================== -->
+
+    <!-- ============================================== -->
+    <!-- 3. AUTH & PROFILE MODALS                       -->
+    <!-- ============================================== -->
+    <!-- 3. MODALS (Avatar Gallery, Shortcuts, Templates)-->
+    <!-- ============================================== -->
+
+    <!-- Modal 4: Full Avatar Gallery & Custom Photo Hub -->
+    <div class="modal-backdrop" id="avatarGalleryModal">
+      <div class="modal-card gallery-modal-card glass-panel animate-pop">
+        <div class="shortcuts-header" style="border:none;margin-bottom:8px;">
+          <div class="modal-brand">
+            <div class="brand-icon" style="background:#A0D2EB;">🎭</div>
+            <div>
+              <h3 style="margin:0;font-size:1.15rem;font-weight:900;">Choose Your Avatar</h3>
+              <p style="margin:0;font-size:0.75rem;font-weight:700;color:#64748B;">Pick a styled persona or upload any image</p>
+            </div>
+          </div>
+          <button class="close-modal-btn" id="btnCloseAvatarGallery">&times;</button>
+        </div>
+
+        <div class="gallery-category-tabs">
+          <button type="button" class="gallery-tab active" data-filter="all">🌟 All (24)</button>
+          <button type="button" class="gallery-tab" data-filter="personas">🧙 Personas</button>
+          <button type="button" class="gallery-tab" data-filter="animals">🦊 Creatures</button>
+          <button type="button" class="gallery-tab" data-filter="cyber">⚡ Cyber & Badges</button>
+        </div>
+
+        <div class="gallery-avatars-grid" id="galleryAvatarsGrid">
+          <!-- Populated dynamically with high-quality styled cards -->
+        </div>
+
+        <div class="gallery-modal-footer">
+          <button type="button" class="hero-secondary-btn" id="btnGalleryUploadPhoto" style="flex:1;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <span>Upload Photo from Computer</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 4: Keyboard Shortcuts -->
+    <div class="modal-backdrop" id="shortcutsModal">
+      <div class="modal-card shortcuts-card glass-panel animate-pop">
+        <div class="shortcuts-header">
+          <h3>Keyboard Shortcuts</h3>
+          <button class="close-modal-btn" id="closeShortcutsBtn">&times;</button>
+        </div>
+        
+        <div class="shortcuts-grid">
+          <div class="shortcut-group">
+            <h4>Tools</h4>
+            <div class="shortcut-row"><span class="label">Select / Move</span><kbd>V</kbd></div>
+            <div class="shortcut-row"><span class="label">Laser Pointer</span><kbd>K</kbd></div>
+            <div class="shortcut-row"><span class="label">Smooth Pen</span><kbd>P</kbd></div>
+            <div class="shortcut-row"><span class="label">Highlighter</span><kbd>H</kbd></div>
+            <div class="shortcut-row"><span class="label">Eraser</span><kbd>E</kbd></div>
+            <div class="shortcut-row"><span class="label">Sticky Note</span><kbd>S</kbd></div>
+            <div class="shortcut-row"><span class="label">Text Box</span><kbd>T</kbd></div>
+            <div class="shortcut-row"><span class="label">Code Snippet</span><kbd>C</kbd></div>
+            <div class="shortcut-row"><span class="label">Insert Image</span><kbd>I</kbd></div>
+          </div>
+
+          <div class="shortcut-group">
+            <h4>Social & Canvas</h4>
+            <div class="shortcut-row"><span class="label">Live Cursor Chat</span><kbd>/</kbd></div>
+            <div class="shortcut-row"><span class="label">Attention Radar Ping</span><kbd>Double Click</kbd></div>
+            <div class="shortcut-row"><span class="label">Follow Teammate</span><kbd>Click Avatar</kbd></div>
+            <div class="shortcut-row"><span class="label">Undo / Redo</span><kbd>Ctrl + Z / Y</kbd></div>
+            <div class="shortcut-row"><span class="label">Delete Selected</span><kbd>Delete</kbd></div>
+          </div>
+        </div>
+
+        <div class="shortcuts-footer">
+          Built by Jaya Chandra Vennam   © 2026 CoCanvas | All Rights Reserved
+        </div>
+      </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
