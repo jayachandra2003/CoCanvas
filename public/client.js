@@ -2118,34 +2118,103 @@
       }
 
       const displayName = peer.name || 'Collaborator';
-      const labelText = isImg ? displayName : `${peer.avatar || ''} ${displayName}`.trim();
-      cursorCtx.font = '700 11px "Plus Jakarta Sans", sans-serif';
-      const textWidth = cursorCtx.measureText(labelText).width;
-      const avatarOffset = (isImg && imgObj && imgObj.complete && imgObj.naturalWidth > 0) ? 18 : 0;
-      const badgeW = textWidth + 16 + avatarOffset;
-      const badgeH = 22;
+      const isPeerHost = state.hostSessionId && peer.sessionId === state.hostSessionId;
 
-      cursorCtx.fillStyle = color;
+      // 2. Avatar Circle (positioned under the cursor arrow)
+      const circleCenterX = 14;
+      const circleCenterY = 28;
+      const circleRadius = 13;
+
+      // Circle drop shadow
+      cursorCtx.save();
+      cursorCtx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+      cursorCtx.shadowBlur = 4;
+      cursorCtx.shadowOffsetY = 2;
+
+      // Circle background fill
+      cursorCtx.fillStyle = '#FFFFFF';
       cursorCtx.beginPath();
-      if (cursorCtx.roundRect) cursorCtx.roundRect(14, 12, badgeW, badgeH, 6);
-      else cursorCtx.rect(14, 12, badgeW, badgeH);
+      cursorCtx.arc(circleCenterX, circleCenterY, circleRadius, 0, Math.PI * 2);
       cursorCtx.fill();
+      cursorCtx.restore();
 
-      let textStartX = 21;
+      // Circle colored border
+      cursorCtx.strokeStyle = color;
+      cursorCtx.lineWidth = 2.5;
+      cursorCtx.beginPath();
+      cursorCtx.arc(circleCenterX, circleCenterY, circleRadius, 0, Math.PI * 2);
+      cursorCtx.stroke();
+
+      // Circle subtle dark outer rim
+      cursorCtx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+      cursorCtx.lineWidth = 1;
+      cursorCtx.beginPath();
+      cursorCtx.arc(circleCenterX, circleCenterY, circleRadius + 1, 0, Math.PI * 2);
+      cursorCtx.stroke();
+
+      // Render Avatar inside Circle
       if (isImg && imgObj && imgObj.complete && imgObj.naturalWidth > 0) {
         cursorCtx.save();
         cursorCtx.beginPath();
-        cursorCtx.arc(14 + 11, 12 + 11, 7.5, 0, Math.PI * 2);
+        cursorCtx.arc(circleCenterX, circleCenterY, circleRadius - 1.5, 0, Math.PI * 2);
         cursorCtx.clip();
-        cursorCtx.drawImage(imgObj, 14 + 3.5, 12 + 3.5, 15, 15);
+        cursorCtx.drawImage(
+          imgObj,
+          circleCenterX - circleRadius + 1.5,
+          circleCenterY - circleRadius + 1.5,
+          (circleRadius - 1.5) * 2,
+          (circleRadius - 1.5) * 2
+        );
         cursorCtx.restore();
-        textStartX += 16;
+      } else {
+        // Emoji avatar
+        cursorCtx.font = '14px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+        cursorCtx.textAlign = 'center';
+        cursorCtx.textBaseline = 'middle';
+        cursorCtx.fillText(peer.avatar || '👤', circleCenterX, circleCenterY + 1);
       }
 
+      // Host crown indicator
+      if (isPeerHost) {
+        cursorCtx.font = '10px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+        cursorCtx.textAlign = 'center';
+        cursorCtx.textBaseline = 'middle';
+        cursorCtx.fillText('👑', circleCenterX + 10, circleCenterY - 9);
+      }
+
+      // 3. Name Label (Centered directly UNDER the Avatar Circle)
+      cursorCtx.font = '700 10.5px "Plus Jakarta Sans", sans-serif';
+      const textWidth = cursorCtx.measureText(displayName).width;
+      const nameBadgeH = 19;
+      const nameBadgeW = Math.max(34, textWidth + 14);
+      const nameBadgeX = circleCenterX - nameBadgeW / 2;
+      const nameBadgeY = circleCenterY + circleRadius + 4;
+
+      // Badge pill background
+      cursorCtx.save();
+      cursorCtx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+      cursorCtx.shadowBlur = 3;
+      cursorCtx.shadowOffsetY = 1.5;
+      cursorCtx.fillStyle = color;
+      cursorCtx.beginPath();
+      if (cursorCtx.roundRect) cursorCtx.roundRect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH, 6);
+      else cursorCtx.rect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH);
+      cursorCtx.fill();
+      cursorCtx.restore();
+
+      // Badge stroke
+      cursorCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      cursorCtx.lineWidth = 1;
+      cursorCtx.beginPath();
+      if (cursorCtx.roundRect) cursorCtx.roundRect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH, 6);
+      else cursorCtx.rect(nameBadgeX, nameBadgeY, nameBadgeW, nameBadgeH);
+      cursorCtx.stroke();
+
+      // Badge text
       cursorCtx.fillStyle = '#FFFFFF';
-      cursorCtx.textAlign = 'left';
+      cursorCtx.textAlign = 'center';
       cursorCtx.textBaseline = 'middle';
-      cursorCtx.fillText(labelText, textStartX, 12 + badgeH / 2);
+      cursorCtx.fillText(displayName, circleCenterX, nameBadgeY + nameBadgeH / 2 + 0.5);
 
       if (peer.chatText && peer.chatText.trim().length > 0) {
         cursorCtx.font = '600 13px "Plus Jakarta Sans", sans-serif';
@@ -2163,6 +2232,8 @@
         cursorCtx.stroke();
 
         cursorCtx.fillStyle = '#FFFFFF';
+        cursorCtx.textAlign = 'left';
+        cursorCtx.textBaseline = 'middle';
         cursorCtx.fillText(peer.chatText, 24, -36 + chatH / 2);
       }
       cursorCtx.restore();
