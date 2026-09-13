@@ -3,12 +3,12 @@
 <div align="center">
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Render.com-00C7B7?style=for-the-badge&logo=render&logoColor=white)](https://cocanvas-7gef.onrender.com)
-[![Version](https://img.shields.io/badge/Version-3.0_Latest-8B5CF6?style=for-the-badge)](https://github.com/jayachandra2003/CoCanvas)
+[![Version](https://img.shields.io/badge/Version-4.0_Latest-8B5CF6?style=for-the-badge)](https://github.com/jayachandra2003/CoCanvas)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Socket.io](https://img.shields.io/badge/Socket.io-4.8.3-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](LICENSE)
 
-**An ultra-fast, multiplayer virtual whiteboard and team collaboration workspace featuring infinite canvas rendering, live cursor tracking, multi-language continuous voice chat, MS Paint brushes, interactive sticky notes, smart code cards, and procedural VFX.**
+**An ultra-fast, multiplayer virtual whiteboard and team collaboration workspace featuring Fixed Multi-Page Mode, Infinite Canvas Playground, page-isolated live cursor tracking, multi-language continuous voice chat, MS Paint realistic brushes, interactive sticky notes, smart code cards, and procedural VFX.**
 
 [🚀 **Launch Live Application**](https://cocanvas-7gef.onrender.com) · [🐞 Report Bug](https://github.com/jayachandra2003/CoCanvas/issues) · [✨ Request Feature](https://github.com/jayachandra2003/CoCanvas/issues)
 
@@ -16,10 +16,17 @@
 
 ---
 
-## 🌟 Highlights & Features (Version 3.0)
+## 🌟 Highlights & Features (Version 4.0)
+
+### 📄 Fixed Multi-Page Mode & Infinite Playground
+* **Fixed Multi-Page Workspace**: Clean, single-window multi-page canvas tailored for structured presentations, lectures, and mobile/desktop alignment.
+* **Page-Isolated Real-Time Drawings**: Each page maintains its own isolated drawing elements and history.
+* **Bottom Page Navigation Dock**: Add pages, jump instantly with the page selector menu, fit page to window, and delete pages.
+* **Smart Presentation Sync**: In **Host Mode**, page flips and canvas mode changes automatically synchronize to guide all audience members; in **Friendly Mode**, users freely explore pages independently.
+* **Page-Isolated Collaborators**: Remote cursors, live pencil strokes, laser trails, and emoji reactions only appear on the specific page you are actively viewing.
+* **Infinite Playground Mode**: Switch to an unconstrained infinite whiteboard with hardware-accelerated pan and zoom (`10%` to `500%`).
 
 ### 🖌️ Multi-Layer Whiteboard & MS Paint Brush Engine
-* **Infinite Pan & Smooth Zoom**: Hardware-accelerated multi-canvas architecture (Grid, Board, Draft, DOM, and VFX layers) with smooth zoom interpolation (`10%` to `500%`).
 * **9 MS Paint Realistic Brushes**: Standard Brush, Calligraphy Pen 1 & 2, Airbrush/Spray, Oil Brush, Crayon, Marker, Natural Pencil, and Watercolor Brush with live stroke previews.
 * **Drawing & Shape Tools**: Precision Pen, Highlighter, Eraser, Line, Arrow, Rectangle, Ellipse/Circle, and Rich Text boxes.
 * **Shape Color & Fill Styles**: Transparent outlines (`🚫 None`), 25% soft translucent fills (`✨ Tint`), and 100% opaque fills (`⬛ Solid`), with customizable stroke and fill palettes.
@@ -36,7 +43,8 @@
 * **Collaborator Cursor Toggle**: 1-click toggle (`Alt + C`) to show or hide remote peer cursors for distraction-free canvas recording.
 * **Laser Pointer & Radar Ping**: Draw disappearing glow laser trails (`K`) or ping points on the canvas (`P`) to focus team attention.
 * **Instant Cursor Chat**: Press `/` or click Cursor Chat to broadcast real-time floating thought bubbles attached directly to your cursor.
-* **Emoji Reaction Particles**: Send floating celebration reaction particles anywhere on the canvas.
+* **Emoji Reaction Particles & Stickers**: Send floating celebration reaction particles anywhere on the canvas or drop emoji stickers.
+* **🔔 Compact Top-Right Notifications**: Redesigned sleek toast notifications docked directly below the top bar with smooth slide animations.
 
 ### 💬 ChatSpace & Multi-Language Voice Typing
 * **🎙️ Multi-Language Continuous Voice Typing**: Hands-free voice recognition with continuous listening (no premature cutoffs) and automatic real-time translation of any spoken language (Hindi, Telugu, Tamil, Spanish, French, German, Japanese, etc.) directly into English!

@@ -163,9 +163,9 @@
               <h3>About</h3>
             </div>
             <div class="info-card-content">
-              <p><strong>CoCanvas</strong> is a free, instant real-time collaborative whiteboard, live coding workspace, and visual canvas.</p>
-              <p>Create multiplayer rooms in 1 click, sketch diagrams, write and format code with our smart IDE compiler, brainstorm with sticky notes, and present seamlessly in Host Mode without login friction!</p>
-              <p>Enjoy voice chat, laser pointers, live cursor chat, prebuilt templates, and 2x HD Retina export. Have fun collaborating!</p>
+              <p><strong>CoCanvas</strong> is a free, instant real-time collaborative whiteboard, live coding workspace, and multi-page visual canvas.</p>
+              <p>Switch between <strong>Fixed Page Mode</strong> for clean multi-page presentations and <strong>Playground Mode</strong> for infinite drawing! Sketch with 9 MS Paint brushes, code in real-time, brainstorm with sticky notes, and present seamlessly in Host Mode.</p>
+              <p>Enjoy continuous voice typing with live translation, page-isolated collaborators, laser pointers, stickers, chat, and 2x HD Retina export. Have fun collaborating!</p>
             </div>
           </div>
 
@@ -178,14 +178,17 @@
             <div class="info-card-content news-content">
               <div class="news-release-header">
                 <span class="news-release-title">Latest Updates</span>
-                <span class="news-release-date">Version 3.0</span>
+                <span class="news-release-date">Version 4.0</span>
               </div>
               <ul class="news-updates-list">
+                <li><span class="news-item-icon">📄</span><span><strong>Fixed Multi-Page Mode</strong>: Dedicated multi-page canvas with page-isolated drawings, bottom dock & fit-to-window</span></li>
+                <li><span class="news-item-icon">🎓</span><span><strong>Smart Presentation Sync</strong>: Host Mode syncs page flips & mode switches to viewers; Friendly Mode allows independent navigation</span></li>
+                <li><span class="news-item-icon">🎯</span><span><strong>Page-Isolated Collaborators</strong>: Cursors, live drafts, laser trails & reactions are isolated to the active page</span></li>
+                <li><span class="news-item-icon">🔔</span><span><strong>Compact Top-Right Toasts</strong>: Redesigned sleek notifications docked under top bar with smooth slide animation</span></li>
                 <li><span class="news-item-icon">🎙️</span><span><strong>Multi-Language Voice Typing</strong>: Speaks in any language & auto-translates to English in real time</span></li>
                 <li><span class="news-item-icon">🛡️</span><span><strong>2-Kick Anti-Abuse Ban</strong>: Host kick tracking with permanent room ban protection</span></li>
                 <li><span class="news-item-icon">👥</span><span><strong>Room Members & Roles Hub</strong>: Top-right modal to manage hosts, jump to view & kick users</span></li>
-                <li><span class="news-item-icon">🗺️</span><span><strong>Enhanced Radar Minimap</strong>: Bigger radar overview with responsive collision avoidance</span></li>
-                <li><span class="news-item-icon">🎨</span><span><strong>MS Paint Brushes & Personas</strong>: 9 realistic brushes, high-res avatars & color palettes</span></li>
+                <li><span class="news-item-icon">🎨</span><span><strong>MS Paint Brushes & Stickers</strong>: 9 realistic brushes, custom photo avatars, emoji stickers & palettes</span></li>
                 <li><span class="news-item-icon">💻</span><span><strong>Smart IDE Code Compiler</strong>: Real-time collaborative code editor with syntax formatting</span></li>
               </ul>
             </div>
@@ -215,15 +218,15 @@
               <div class="guide-step-item">
                 <span class="guide-step-num">3</span>
                 <div class="guide-step-text">
-                  <strong>Draw, Code & Brainstorm</strong>
-                  <p>Use pen, shapes, smart code editor, sticky notes, voice chat & laser.</p>
+                  <strong>Draw, Code & Switch Pages</strong>
+                  <p>Switch between Fixed Page & Playground modes, use 9 brushes, smart IDE, sticky notes & voice chat.</p>
                 </div>
               </div>
               <div class="guide-step-item">
                 <span class="guide-step-num">4</span>
                 <div class="guide-step-text">
                   <strong>Present & Export</strong>
-                  <p>Toggle Host/Friendly mode & export crisp 2x Retina PNGs.</p>
+                  <p>Guide viewers in Host Mode, collaborate in Friendly Mode & export crisp 2x Retina PNGs.</p>
                 </div>
               </div>
             </div>
@@ -254,7 +257,7 @@
           </div>
         </div>
 
-        <!-- Middle / Center: Friendly / Host Mode Button -->
+        <!-- Middle / Center: Friendly / Host Mode & Canvas Mode (Fixed Pages vs Playground) -->
         <div class="nav-center">
           <div class="dropdown-wrapper" id="roomModeWrapper">
             <button class="nav-btn room-mode-btn" id="roomModeBtn" title="Canvas Drawing Permissions">
@@ -285,6 +288,18 @@
                 </div>
               </button>
             </div>
+          </div>
+
+          <!-- Canvas Layout Mode Switcher (Fixed Window Page vs Infinite Playground) -->
+          <div class="canvas-mode-segmented-pill" id="canvasModePill">
+            <button type="button" class="mode-pill-btn active" id="btnModeFixedPage" title="Window Fixed Multi-Page Mode">
+              <span class="mode-pill-icon">📄</span>
+              <span class="mode-pill-label">Fixed Page</span>
+            </button>
+            <button type="button" class="mode-pill-btn" id="btnModeInfiniteCanvas" title="Infinite Canvas Playground Mode">
+              <span class="mode-pill-icon">🌐</span>
+              <span class="mode-pill-label">Playground</span>
+            </button>
           </div>
         </div>
 
@@ -376,6 +391,12 @@
           <div class="selection-handle handle-s" data-handle="s"></div>
           <div class="selection-handle handle-w" data-handle="w"></div>
           <button class="selection-delete-btn" id="selectionDeleteBtn" title="Delete Element">&times;</button>
+        </div>
+
+        <!-- Fixed Page Floating Tag Header (Document / Window Mode) -->
+        <div id="fixedPageTag" class="fixed-page-tag hidden">
+          <span class="fixed-page-tag-icon">📄</span>
+          <span id="fixedPageTagTitle" class="fixed-page-tag-title">Page 1 (1/1) · 1600 × 1000</span>
         </div>
 
         <!-- Local Cursor Chat Bubble -->
@@ -514,6 +535,47 @@
       </button>
 
       <input type="file" id="imageUploadInput" accept="image/*" style="display:none;" />
+
+      <!-- Floating Page Navigation Controller Bar (Fixed Multi-Page Window Mode) -->
+      <div id="pageNavDock" class="page-nav-dock glass-panel hidden">
+        <button type="button" class="page-dock-btn" id="btnPrevPage" title="Previous Page (PgUp / [)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+
+        <div class="page-selector-wrapper" id="pageSelectorWrapper">
+          <button type="button" class="page-selector-btn" id="pageSelectorBtn" title="Jump to Page">
+            <span class="page-selector-icon">📄</span>
+            <span id="pageSelectorLabel">Page 1 (1 / 1)</span>
+            <span class="page-selector-caret">▾</span>
+          </button>
+          <div class="page-dropdown-menu glass-panel hidden" id="pageDropdownMenu">
+            <div class="page-dropdown-header">PAGES IN ROOM</div>
+            <div class="page-dropdown-list" id="pageDropdownList">
+              <!-- Dynamically populated page list -->
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="page-dock-btn" id="btnNextPage" title="Next Page (PgDn / ])">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+
+        <div class="page-dock-divider"></div>
+
+        <button type="button" class="page-dock-btn page-action-btn" id="btnNewPage" title="Add New Blank Page">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span class="page-btn-text">New Page</span>
+        </button>
+
+        <button type="button" class="page-dock-btn page-action-btn page-btn-fit" id="btnFitPage" title="Fit Page to Screen (Auto Focus / Center)">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+          <span class="page-btn-text">Fit Page</span>
+        </button>
+
+        <button type="button" class="page-dock-btn page-btn-danger" id="btnDeletePage" title="Delete Current Page">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      </div>
 
       <!-- Bottom Floating Dock -->
       <nav class="bottom-dock glass-panel">
