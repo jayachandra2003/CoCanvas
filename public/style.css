@@ -411,8 +411,8 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 36px 20px;
+  justify-content: flex-start;
+  padding: 24px 20px 16px 20px;
   max-width: 980px;
   margin: 0 auto;
   width: 100%;
@@ -442,7 +442,8 @@ html, body {
   gap: 20px;
   width: 100%;
   max-width: 960px;
-  margin-top: 32px;
+  margin-top: 24px;
+  margin-bottom: 20px;
 }
 
 .landing-info-card {
@@ -1291,12 +1292,22 @@ html, body {
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-muted);
-  padding: 22px;
+  padding: 18px 20px 22px 20px;
   border-top: var(--border-black);
   background: var(--bg-white);
   flex-shrink: 0;
   width: 100%;
   margin-top: auto;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+.landing-footer span {
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 [data-theme="dark"] .landing-footer {
@@ -5961,13 +5972,24 @@ html, body {
     -webkit-overflow-scrolling: touch;
   }
   .landing-header { padding: 0 16px; height: 58px; flex-shrink: 0; }
-  .landing-main { padding: 20px 14px; flex: 1 0 auto; flex-shrink: 0; }
+  .landing-main { padding: 18px 12px 14px 12px; flex: 1 0 auto; flex-shrink: 0; justify-content: flex-start; }
   .landing-footer {
-    padding: 18px 14px 48px 14px;
-    padding-bottom: max(48px, calc(env(safe-area-inset-bottom, 0px) + 28px));
-    flex-shrink: 0;
-    width: 100%;
-    margin-top: auto;
+    padding: 16px 14px 60px 14px !important;
+    padding-bottom: max(60px, calc(env(safe-area-inset-bottom, 0px) + 36px)) !important;
+    font-size: 0.74rem !important;
+    line-height: 1.55 !important;
+    text-align: center !important;
+    flex-shrink: 0 !important;
+    width: 100% !important;
+    margin-top: auto !important;
+    box-sizing: border-box !important;
+  }
+  .landing-footer span {
+    display: inline-block !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
   }
   .hero-entry-card { padding: 22px 18px; margin-bottom: 0px; max-width: 100%; }
   
@@ -6226,6 +6248,11 @@ html, body {
   .hero-secondary-btn { font-size: 0.78rem; }
   .avatar-picker-grid { grid-template-columns: repeat(4, 1fr); }
   .dock-btn { width: 34px; height: 34px; }
+  .landing-footer {
+    font-size: 0.72rem !important;
+    padding: 14px 10px 64px 10px !important;
+    padding-bottom: max(64px, calc(env(safe-area-inset-bottom, 0px) + 40px)) !important;
+  }
 }
 
 /* Short height screens / mobile landscape (<= 600px height) */
