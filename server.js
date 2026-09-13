@@ -829,9 +829,14 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
 const FEEDBACK_EMAIL = 'cocanvascontact@gmail.com';
 const feedbackList = [];
 
+function isValidEmail(email) {
+  return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
 async function sendResendFeedbackEmail(feedbackEntry, attachedImageBase64) {
   const isGeneral = feedbackEntry.type === 'general';
   const ratingStars = feedbackEntry.rating ? '⭐'.repeat(feedbackEntry.rating) : '5 / 5 Stars';
+  const hasValidEmail = isValidEmail(feedbackEntry.email);
 
   const htmlContent = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
@@ -850,7 +855,7 @@ async function sendResendFeedbackEmail(feedbackEntry, attachedImageBase64) {
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #64748b; font-weight: 700; font-size: 13px; text-transform: uppercase;">User Email:</td>
-            <td style="padding: 8px 0; color: #0f172a; font-size: 14px;">${feedbackEntry.email !== 'Not provided' ? `<a href="mailto:${feedbackEntry.email}" style="color: #2563eb; font-weight: 600; text-decoration: none;">${feedbackEntry.email}</a>` : '<span style="color: #94a3b8; font-style: italic;">Not provided</span>'}</td>
+            <td style="padding: 8px 0; color: #0f172a; font-size: 14px;">${hasValidEmail ? `<a href="mailto:${feedbackEntry.email}" style="color: #2563eb; font-weight: 600; text-decoration: none;">${feedbackEntry.email}</a>` : '<span style="color: #94a3b8; font-style: italic;">Not provided</span>'}</td>
           </tr>
           ${isGeneral ? `
           <tr>
@@ -897,7 +902,7 @@ async function sendResendFeedbackEmail(feedbackEntry, attachedImageBase64) {
         html: htmlContent
       };
 
-      if (feedbackEntry.email && feedbackEntry.email !== 'Not provided') {
+      if (hasValidEmail) {
         resendPayload.reply_to = feedbackEntry.email;
       }
 
@@ -929,31 +934,6 @@ async function sendResendFeedbackEmail(feedbackEntry, attachedImageBase64) {
       console.warn('⚠️ Resend dispatch error:', rErr.message);
     }
   }
-
-  // 2. Dispatch via FormSubmit directly to cocanvascontact@gmail.com
-  try {
-    await fetch(`https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Origin': 'http://localhost:3000',
-        'Referer': 'http://localhost:3000/'
-      },
-      body: JSON.stringify({
-        _subject: `[CoCanvas ${feedbackEntry.type.toUpperCase()}] ${feedbackEntry.subject}`,
-        senderName: feedbackEntry.name,
-        senderEmail: feedbackEntry.email,
-        feedbackCategory: feedbackEntry.type === 'general' ? `General Feedback (${feedbackEntry.rating}/5 ⭐)` : 'Bug Report',
-        ratingGiven: feedbackEntry.rating ? `${feedbackEntry.rating} / 5 Stars` : 'N/A',
-        issueTitle: feedbackEntry.subject,
-        details: feedbackEntry.message,
-        attachmentIncluded: feedbackEntry.hasAttachment ? 'Yes (attached in app session)' : 'No'
-      })
-    }).catch(err => console.warn('FormSubmit note:', err.message));
-  } catch (fErr) {
-    // Non-blocking
-  }
 }
 
 app.post('/api/feedback', async (req, res) => {
@@ -963,10 +943,12 @@ app.post('/api/feedback', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Subject and message are required.' });
     }
 
+    const validSenderEmail = isValidEmail(email) ? email.trim() : null;
+
     const feedbackEntry = {
       id: 'fb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       name: (name || 'Anonymous User').trim(),
-      email: (email || 'Not provided').trim(),
+      email: validSenderEmail || 'Not provided',
       type: type || 'general',
       rating: rating || (type === 'general' ? 5 : undefined),
       subject: (subject || 'CoCanvas Feedback').trim(),
