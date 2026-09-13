@@ -1293,7 +1293,7 @@ html, body {
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-muted);
-  padding: 18px 20px 24px 20px;
+  padding: 20px 20px 24px 20px;
   border-top: var(--border-black);
   background: var(--bg-white);
   flex-shrink: 0;
@@ -1307,18 +1307,53 @@ html, body {
   gap: 10px;
 }
 
+/* Sample 4: Footer Brand Header */
+.footer-brand-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.footer-brand-logo {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.footer-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.footer-brand-title {
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  color: var(--text-main);
+}
+
+.footer-version-tag {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.65rem;
+  font-weight: 800;
+  background: #FEF08A;
+  color: #854D0E;
+  border: 1px solid #EAB308;
+  padding: 1px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.3px;
+}
+
 .landing-footer-links {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
-}
-
-.footer-links-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .footer-link-btn {
@@ -1347,21 +1382,45 @@ html, body {
   user-select: none;
 }
 
-.landing-footer-copy {
-  display: inline-block;
-  max-width: 100%;
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  font-size: 0.76rem;
+/* Creator Credit & Copyright */
+.footer-creator-credit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.footer-author-text {
+  font-size: 0.77rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.footer-author-text strong {
+  font-weight: 900;
+}
+
+.footer-copy-text {
+  font-size: 0.72rem;
   color: var(--text-muted);
-  line-height: 1.45;
+  font-weight: 600;
 }
 
 [data-theme="dark"] .landing-footer {
   background: #13151D;
   border-top: 2px solid #262A37;
   color: #94A3B8;
+}
+
+[data-theme="dark"] .footer-brand-title {
+  color: #FFFFFF;
+}
+
+[data-theme="dark"] .footer-version-tag {
+  background: #78350F;
+  color: #FEF08A;
+  border-color: #B45309;
 }
 
 [data-theme="dark"] .footer-link-btn {
@@ -1372,7 +1431,11 @@ html, body {
   color: #93C5FD;
 }
 
-[data-theme="dark"] .landing-footer-copy {
+[data-theme="dark"] .footer-author-text {
+  color: #E2E8F0;
+}
+
+[data-theme="dark"] .footer-copy-text {
   color: #94A3B8;
 }
 
@@ -6814,8 +6877,8 @@ html, body {
   .landing-header { padding: 0 16px; height: 58px; flex-shrink: 0; }
   .landing-main { padding: 18px 12px 14px 12px; flex: 0 0 auto; flex-shrink: 0; justify-content: flex-start; }
   .landing-footer {
-    padding: 16px 14px 50px 14px !important;
-    padding-bottom: max(50px, calc(env(safe-area-inset-bottom, 20px) + 30px)) !important;
+    padding: 16px 14px 46px 14px !important;
+    padding-bottom: max(46px, calc(env(safe-area-inset-bottom, 20px) + 26px)) !important;
     font-size: 0.75rem !important;
     line-height: 1.5 !important;
     text-align: center !important;
@@ -6823,7 +6886,17 @@ html, body {
     width: 100% !important;
     margin-top: auto !important;
     box-sizing: border-box !important;
-    gap: 8px !important;
+    gap: 9px !important;
+  }
+  .footer-brand-row {
+    gap: 6px !important;
+  }
+  .footer-brand-title {
+    font-size: 0.88rem !important;
+  }
+  .footer-version-tag {
+    font-size: 0.62rem !important;
+    padding: 1px 6px !important;
   }
   .landing-footer-links {
     display: flex !important;
@@ -6831,30 +6904,31 @@ html, body {
     flex-wrap: wrap !important;
     justify-content: center !important;
     align-items: center !important;
-    gap: 6px 14px !important;
-    max-width: 380px !important;
+    gap: 6px 10px !important;
+    max-width: 360px !important;
     margin: 0 auto !important;
-  }
-  .footer-links-divider {
-    display: none !important;
-  }
-  .footer-links-group {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 8px !important;
   }
   .footer-link-btn {
     font-size: 0.75rem !important;
     padding: 2px 3px !important;
   }
-  .landing-footer-copy {
-    display: block !important;
-    font-size: 0.73rem !important;
-    line-height: 1.5 !important;
-    max-width: 330px !important;
-    margin: 0 auto !important;
-    padding-bottom: 8px !important;
+  .footer-creator-credit {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 2px !important;
+    margin-top: 1px !important;
+  }
+  .footer-author-text {
+    font-size: 0.74rem !important;
+    line-height: 1.4 !important;
     text-align: center !important;
+  }
+  .footer-copy-text {
+    font-size: 0.70rem !important;
+    line-height: 1.4 !important;
+    text-align: center !important;
+    padding-bottom: 4px !important;
   }
   .hero-entry-card { padding: 22px 18px; margin-bottom: 0px; max-width: 100%; }
   
@@ -7115,23 +7189,22 @@ html, body {
   .dock-btn { width: 34px; height: 34px; }
   .landing-footer {
     font-size: 0.72rem !important;
-    padding: 14px 10px 54px 10px !important;
-    padding-bottom: max(54px, calc(env(safe-area-inset-bottom, 24px) + 32px)) !important;
-    gap: 7px !important;
+    padding: 14px 10px 48px 10px !important;
+    padding-bottom: max(48px, calc(env(safe-area-inset-bottom, 24px) + 26px)) !important;
+    gap: 8px !important;
   }
   .landing-footer-links {
     max-width: 330px !important;
-    gap: 4px 10px !important;
-  }
-  .footer-links-group {
-    gap: 6px !important;
+    gap: 4px 8px !important;
   }
   .footer-link-btn {
     font-size: 0.72rem !important;
   }
-  .landing-footer-copy {
-    font-size: 0.70rem !important;
-    max-width: 300px !important;
+  .footer-author-text {
+    font-size: 0.71rem !important;
+  }
+  .footer-copy-text {
+    font-size: 0.68rem !important;
   }
   .contact-author-box {
     flex-wrap: wrap;
