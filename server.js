@@ -834,7 +834,7 @@ app.post('/api/feedback', async (req, res) => {
     // Forward to FormSubmit.co backend dispatch to deliver email to cocanvascontact@gmail.com
     try {
       if (typeof fetch === 'function') {
-        await fetch(`https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
+        await fetch(`https://formsubmit.co/ajax/3666df5a1eab2ce21f2b2ac8e2e5741e`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -844,7 +844,8 @@ app.post('/api/feedback', async (req, res) => {
             _subject: `[CoCanvas ${feedbackEntry.type.toUpperCase()}] ${feedbackEntry.subject}`,
             senderName: feedbackEntry.name,
             senderEmail: feedbackEntry.email,
-            feedbackCategory: feedbackEntry.type,
+            feedbackCategory: feedbackEntry.type === 'general' ? `General Feedback (${feedbackEntry.rating}/5 ⭐)` : 'Bug Report',
+            ratingGiven: feedbackEntry.rating ? `${feedbackEntry.rating} / 5 Stars` : 'N/A',
             issueTitle: feedbackEntry.subject,
             details: feedbackEntry.message,
             attachmentIncluded: feedbackEntry.hasAttachment ? 'Yes (attached in app session)' : 'No'
