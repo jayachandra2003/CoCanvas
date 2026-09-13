@@ -263,7 +263,9 @@
           <span class="footer-link-dot">&bull;</span>
           <button type="button" class="footer-link-btn" id="btnOpenTermsOfService">Terms of Service</button>
           <span class="footer-link-dot">&bull;</span>
-          <button type="button" class="footer-link-btn" id="btnOpenContactModal">Contact &amp; Feedback</button>
+          <button type="button" class="footer-link-btn" id="btnOpenContactModal">Contact</button>
+          <span class="footer-link-dot">&bull;</span>
+          <button type="button" class="footer-link-btn" id="btnFooterOpenFeedback">Feedback</button>
         </div>
         <span class="landing-footer-copy">Built by Jaya Chandra Vennam &copy; 2026 CoCanvas | All Rights Reserved</span>
       </footer>
@@ -1333,11 +1335,11 @@
       </div>
     </div>
 
-    <!-- Modal 7: Contact & Feedback -->
+    <!-- Modal 7: Contact -->
     <div class="modal-backdrop" id="contactModal">
       <div class="modal-card legal-card glass-panel animate-pop">
         <div class="modal-header">
-          <h3>📬 Contact &amp; Feedback</h3>
+          <h3>📬 Contact</h3>
           <button class="close-modal-btn" id="closeContactBtn">&times;</button>
         </div>
         <div class="contact-modal-body">
@@ -1366,28 +1368,123 @@
             </div>
           </div>
           <div class="contact-links-grid">
+            <a href="mailto:cocanvascontact@gmail.com" class="contact-card-link">
+              <span class="contact-link-icon">✉️</span>
+              <div class="contact-link-text">
+                <strong>Email Support</strong>
+                <span>cocanvascontact@gmail.com</span>
+              </div>
+              <span class="contact-link-arrow">&nearr;</span>
+            </a>
             <a href="https://github.com/jayachandra2003/CoCanvas" target="_blank" rel="noopener noreferrer" class="contact-card-link">
               <span class="contact-link-icon">🐙</span>
               <div class="contact-link-text">
                 <strong>GitHub Repository</strong>
-                <span>Star project, report issues &amp; contribute</span>
-              </div>
-              <span class="contact-link-arrow">&nearr;</span>
-            </a>
-            <a href="https://github.com/jayachandra2003/CoCanvas/issues" target="_blank" rel="noopener noreferrer" class="contact-card-link">
-              <span class="contact-link-icon">💡</span>
-              <div class="contact-link-text">
-                <strong>Feature Suggestions &amp; Bugs</strong>
-                <span>Submit ideas or report unexpected behavior</span>
+                <span>Star project &amp; explore source code</span>
               </div>
               <span class="contact-link-arrow">&nearr;</span>
             </a>
           </div>
         </div>
         <div class="legal-footer">
-          <span>CoCanvas &copy; 2026 &bull; All Rights Reserved</span>
+          <span>CoCanvas &copy; 2026 &bull; Built by Jaya Chandra Vennam</span>
           <button class="modal-action-btn" id="btnAckContact">Close</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal 8: Feedback (General Feedback & Report Bugs) -->
+    <div class="modal-backdrop" id="feedbackModal">
+      <div class="modal-card legal-card glass-panel animate-pop feedback-modal-card">
+        <div class="modal-header">
+          <h3>💬 Feedback &amp; Issues</h3>
+          <button class="close-modal-btn" id="closeFeedbackBtn">&times;</button>
+        </div>
+
+        <form id="feedbackForm" class="feedback-form">
+          <!-- 2 Distinct Category Options -->
+          <div class="feedback-form-group">
+            <label class="feedback-label">Feedback Type</label>
+            <div class="feedback-type-pills two-options">
+              <label class="feedback-type-pill active" data-type="general">
+                <input type="radio" name="feedbackCategory" value="general" checked />
+                <span>💬 General Feedback</span>
+              </label>
+              <label class="feedback-type-pill" data-type="bug">
+                <input type="radio" name="feedbackCategory" value="bug" />
+                <span>🐛 Report Bugs &amp; Issues</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Name & Email Row -->
+          <div class="feedback-form-row">
+            <div class="feedback-form-col">
+              <label for="feedbackNameInput" class="feedback-label">Your Name</label>
+              <input type="text" id="feedbackNameInput" class="feedback-input" placeholder="e.g. Jaya" required />
+            </div>
+            <div class="feedback-form-col">
+              <label for="feedbackEmailInput" class="feedback-label">Your Email <span class="label-sub">(Optional)</span></label>
+              <input type="email" id="feedbackEmailInput" class="feedback-input" placeholder="your.email@gmail.com" />
+            </div>
+          </div>
+
+          <!-- Rating Component (General Feedback Only) -->
+          <div class="feedback-form-group" id="feedbackRatingGroup">
+            <label class="feedback-label">Your Rating</label>
+            <div class="feedback-rating-wrap">
+              <div class="feedback-stars-container" id="feedbackStarsContainer">
+                <button type="button" class="star-btn active" data-rating="1" title="1 Star - Poor" aria-label="1 Star">★</button>
+                <button type="button" class="star-btn active" data-rating="2" title="2 Stars - Needs Work" aria-label="2 Stars">★</button>
+                <button type="button" class="star-btn active" data-rating="3" title="3 Stars - Okay" aria-label="3 Stars">★</button>
+                <button type="button" class="star-btn active" data-rating="4" title="4 Stars - Good" aria-label="4 Stars">★</button>
+                <button type="button" class="star-btn active" data-rating="5" title="5 Stars - Excellent" aria-label="5 Stars">★</button>
+              </div>
+              <span class="rating-text-badge" id="ratingTextBadge">5 / 5 &bull; Excellent! 🌟</span>
+            </div>
+            <input type="hidden" id="feedbackRatingInput" value="5" />
+          </div>
+
+          <!-- Subject / Title (Bug Report Only) -->
+          <div class="feedback-form-group hidden" id="bugSummaryGroup">
+            <label for="feedbackSubjectInput" class="feedback-label" id="feedbackSubjectLabel">Issue / Bug Summary</label>
+            <input type="text" id="feedbackSubjectInput" class="feedback-input" placeholder="e.g. Brush cursor lags on Firefox or Undo button glitch..." />
+          </div>
+
+          <!-- Details / Description (Common) -->
+          <div class="feedback-form-group" id="feedbackDetailsGroup">
+            <label for="feedbackDetailsInput" class="feedback-label" id="feedbackDetailsLabel">Description <span class="label-sub" id="feedbackDetailsSubLabel">(Optional)</span></label>
+            <textarea id="feedbackDetailsInput" class="feedback-textarea" rows="4" placeholder="Share your thoughts, what you love, or ideas for improving CoCanvas..."></textarea>
+          </div>
+
+          <!-- Attach Screenshot / Images (Bug Report Only) -->
+          <div class="feedback-form-group hidden" id="bugAttachmentGroup">
+            <label class="feedback-label">Attach Screenshot / File <span class="label-sub">(Optional)</span></label>
+            <input type="file" id="feedbackFileInput" accept="image/*" style="display: none;" />
+            <div class="feedback-upload-area" id="feedbackUploadArea">
+              <button type="button" class="btn-attach-file" id="btnFeedbackAttach">
+                <span class="attach-icon">📎</span>
+                <span id="feedbackAttachLabel">Attach Screenshot / Image</span>
+              </button>
+              <div class="feedback-preview-chip hidden" id="feedbackPreviewChip">
+                <img id="feedbackPreviewImg" src="" alt="Preview" class="feedback-thumb-img" />
+                <span id="feedbackPreviewName" class="feedback-filename">image.png</span>
+                <button type="button" class="btn-remove-attachment" id="btnRemoveAttachment" title="Remove attachment">&times;</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer Actions -->
+          <div class="feedback-footer">
+            <span class="feedback-dest-note">📬 Directly emails <strong>cocanvascontact@gmail.com</strong></span>
+            <div class="feedback-actions">
+              <button type="button" class="modal-action-btn btn-secondary-modal" id="btnCancelFeedback">Cancel</button>
+              <button type="submit" class="modal-action-btn btn-submit-feedback" id="btnSubmitFeedback">
+                <span id="feedbackBtnText">Send Feedback 🚀</span>
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
 

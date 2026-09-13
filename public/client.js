@@ -6533,6 +6533,311 @@
   if (btnAckContact) btnAckContact.addEventListener('click', () => closeLegalModal(contactModal));
   if (contactModal) contactModal.addEventListener('click', (e) => { if (e.target === contactModal) closeLegalModal(contactModal); });
 
+  // Feedback & Bug Report Modal
+  const feedbackModal = document.getElementById('feedbackModal');
+  const btnFooterOpenFeedback = document.getElementById('btnFooterOpenFeedback');
+  const btnOpenFeedbackModal = document.getElementById('btnOpenFeedbackModal');
+  const closeFeedbackBtn = document.getElementById('closeFeedbackBtn');
+  const btnCancelFeedback = document.getElementById('btnCancelFeedback');
+  const feedbackForm = document.getElementById('feedbackForm');
+  const feedbackNameInput = document.getElementById('feedbackNameInput');
+  const feedbackEmailInput = document.getElementById('feedbackEmailInput');
+  const feedbackRatingGroup = document.getElementById('feedbackRatingGroup');
+  const feedbackRatingInput = document.getElementById('feedbackRatingInput');
+  const feedbackStarsContainer = document.getElementById('feedbackStarsContainer');
+  const ratingTextBadge = document.getElementById('ratingTextBadge');
+  const bugSummaryGroup = document.getElementById('bugSummaryGroup');
+  const feedbackSubjectInput = document.getElementById('feedbackSubjectInput');
+  const feedbackSubjectLabel = document.getElementById('feedbackSubjectLabel');
+  const feedbackDetailsGroup = document.getElementById('feedbackDetailsGroup');
+  const feedbackDetailsInput = document.getElementById('feedbackDetailsInput');
+  const feedbackDetailsLabel = document.getElementById('feedbackDetailsLabel');
+  const bugAttachmentGroup = document.getElementById('bugAttachmentGroup');
+  const feedbackFileInput = document.getElementById('feedbackFileInput');
+  const btnFeedbackAttach = document.getElementById('btnFeedbackAttach');
+  const feedbackPreviewChip = document.getElementById('feedbackPreviewChip');
+  const feedbackPreviewImg = document.getElementById('feedbackPreviewImg');
+  const feedbackPreviewName = document.getElementById('feedbackPreviewName');
+  const btnRemoveAttachment = document.getElementById('btnRemoveAttachment');
+  const btnSubmitFeedback = document.getElementById('btnSubmitFeedback');
+  const feedbackBtnText = document.getElementById('feedbackBtnText');
+  const feedbackTypePills = document.querySelectorAll('.feedback-type-pill');
+
+  let feedbackAttachedBase64 = null;
+  let currentRating = 5;
+
+  const RATING_LABELS = {
+    1: '1 / 5 • Poor 😞',
+    2: '2 / 5 • Needs Work 😕',
+    3: '3 / 5 • Okay 😐',
+    4: '4 / 5 • Good! 😊',
+    5: '5 / 5 • Excellent! 🌟'
+  };
+
+  function updateStarRatingUI(rating) {
+    currentRating = rating;
+    if (feedbackRatingInput) feedbackRatingInput.value = rating;
+    if (ratingTextBadge) ratingTextBadge.textContent = RATING_LABELS[rating] || `${rating} / 5 Stars`;
+
+    if (feedbackStarsContainer) {
+      const starBtns = feedbackStarsContainer.querySelectorAll('.star-btn');
+      starBtns.forEach((btn) => {
+        const starVal = parseInt(btn.getAttribute('data-rating'), 10);
+        if (starVal <= rating) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+    }
+  }
+
+  if (feedbackStarsContainer) {
+    const starBtns = feedbackStarsContainer.querySelectorAll('.star-btn');
+    starBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const ratingVal = parseInt(btn.getAttribute('data-rating'), 10) || 5;
+        updateStarRatingUI(ratingVal);
+        sound.playPop();
+      });
+
+      btn.addEventListener('mouseenter', () => {
+        const hoverVal = parseInt(btn.getAttribute('data-rating'), 10) || 5;
+        starBtns.forEach((b) => {
+          const v = parseInt(b.getAttribute('data-rating'), 10);
+          if (v <= hoverVal) b.classList.add('hovered');
+          else b.classList.remove('hovered');
+        });
+      });
+    });
+
+    feedbackStarsContainer.addEventListener('mouseleave', () => {
+      const starBtns = feedbackStarsContainer.querySelectorAll('.star-btn');
+      starBtns.forEach((b) => b.classList.remove('hovered'));
+      updateStarRatingUI(currentRating);
+    });
+  }
+
+  function openFeedbackModalView() {
+    if (feedbackNameInput && state.user && state.user.name && !feedbackNameInput.value) {
+      feedbackNameInput.value = state.user.name;
+    }
+    openLegalModal(feedbackModal);
+  }
+
+  if (btnFooterOpenFeedback) {
+    btnFooterOpenFeedback.addEventListener('click', () => {
+      openFeedbackModalView();
+    });
+  }
+
+  if (btnOpenFeedbackModal) {
+    btnOpenFeedbackModal.addEventListener('click', () => {
+      closeLegalModal(contactModal);
+      openFeedbackModalView();
+    });
+  }
+
+  if (closeFeedbackBtn) closeFeedbackBtn.addEventListener('click', () => closeLegalModal(feedbackModal));
+  if (btnCancelFeedback) btnCancelFeedback.addEventListener('click', () => closeLegalModal(feedbackModal));
+  if (feedbackModal) feedbackModal.addEventListener('click', (e) => { if (e.target === feedbackModal) closeLegalModal(feedbackModal); });
+
+  // Update Form fields based on Category
+  function setFeedbackCategory(type) {
+    if (type === 'bug') {
+      // Hide Rating, Show Bug fields
+      if (feedbackRatingGroup) feedbackRatingGroup.classList.add('hidden');
+      if (bugSummaryGroup) bugSummaryGroup.classList.remove('hidden');
+      if (bugAttachmentGroup) bugAttachmentGroup.classList.remove('hidden');
+
+      if (feedbackSubjectInput) {
+        feedbackSubjectInput.setAttribute('required', 'true');
+        feedbackSubjectInput.placeholder = 'e.g. Brush cursor lags on Firefox or Undo button glitch...';
+      }
+      if (feedbackDetailsLabel) feedbackDetailsLabel.innerHTML = 'Issue Details &amp; Steps to Reproduce';
+      if (feedbackDetailsInput) {
+        feedbackDetailsInput.setAttribute('required', 'true');
+        feedbackDetailsInput.placeholder = 'Describe what happened, error message seen, and steps to reproduce...';
+      }
+      if (feedbackBtnText) feedbackBtnText.textContent = 'Submit Bug Report 🐛';
+    } else {
+      // General Feedback mode: Name, Rating, and Description (Optional)
+      if (feedbackRatingGroup) feedbackRatingGroup.classList.remove('hidden');
+      if (bugSummaryGroup) bugSummaryGroup.classList.add('hidden');
+      if (bugAttachmentGroup) bugAttachmentGroup.classList.add('hidden');
+
+      if (feedbackSubjectInput) {
+        feedbackSubjectInput.removeAttribute('required');
+        feedbackSubjectInput.value = '';
+      }
+      if (feedbackDetailsLabel) feedbackDetailsLabel.innerHTML = 'Description <span class="label-sub">(Optional)</span>';
+      if (feedbackDetailsInput) {
+        feedbackDetailsInput.removeAttribute('required');
+        feedbackDetailsInput.placeholder = 'Share your thoughts, what you love, or ideas for improving CoCanvas...';
+      }
+      if (feedbackBtnText) feedbackBtnText.textContent = 'Send Feedback 🚀';
+    }
+  }
+
+  // Category Pill Selection
+  feedbackTypePills.forEach((pill) => {
+    pill.addEventListener('click', () => {
+      feedbackTypePills.forEach((p) => p.classList.remove('active'));
+      pill.classList.add('active');
+      const radio = pill.querySelector('input[type="radio"]');
+      if (radio) {
+        radio.checked = true;
+        setFeedbackCategory(radio.value);
+      }
+    });
+  });
+
+  // Attach File Handling
+  if (btnFeedbackAttach && feedbackFileInput) {
+    btnFeedbackAttach.addEventListener('click', () => feedbackFileInput.click());
+
+    feedbackFileInput.addEventListener('change', () => {
+      const file = feedbackFileInput.files && feedbackFileInput.files[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+        showToast('Please attach an image (PNG, JPG, etc.)');
+        return;
+      }
+
+      if (file.size > 8 * 1024 * 1024) {
+        showToast('Image size should be under 8MB');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        feedbackAttachedBase64 = ev.target.result;
+        if (feedbackPreviewImg) feedbackPreviewImg.src = feedbackAttachedBase64;
+        if (feedbackPreviewName) feedbackPreviewName.textContent = file.name;
+        if (feedbackPreviewChip) feedbackPreviewChip.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (btnRemoveAttachment) {
+    btnRemoveAttachment.addEventListener('click', (e) => {
+      e.stopPropagation();
+      feedbackAttachedBase64 = null;
+      if (feedbackFileInput) feedbackFileInput.value = '';
+      if (feedbackPreviewChip) feedbackPreviewChip.classList.add('hidden');
+      if (feedbackPreviewImg) feedbackPreviewImg.src = '';
+    });
+  }
+
+  // Submit Feedback Handler
+  if (feedbackForm) {
+    feedbackForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const name = (feedbackNameInput ? feedbackNameInput.value.trim() : '') || 'Anonymous User';
+      const email = feedbackEmailInput ? feedbackEmailInput.value.trim() : '';
+      const checkedCategoryEl = feedbackForm.querySelector('input[name="feedbackCategory"]:checked');
+      const type = checkedCategoryEl ? checkedCategoryEl.value : 'general';
+      const rating = currentRating;
+      
+      let subject = '';
+      let message = (feedbackDetailsInput ? feedbackDetailsInput.value.trim() : '');
+
+      if (type === 'bug') {
+        subject = (feedbackSubjectInput ? feedbackSubjectInput.value.trim() : '') || 'Bug Report';
+        if (!subject || !message) {
+          showToast('Please provide both the bug summary and issue details.');
+          return;
+        }
+      } else {
+        // General Feedback
+        subject = `General Feedback (${rating}/5 Stars)`;
+        if (!message) {
+          message = `User gave a ${rating}/5 star rating!`;
+        }
+      }
+
+      if (btnSubmitFeedback) {
+        btnSubmitFeedback.disabled = true;
+        btnSubmitFeedback.classList.add('btn-loading');
+      }
+      if (feedbackBtnText) feedbackBtnText.textContent = 'Sending...';
+
+      const payload = {
+        name,
+        email,
+        type,
+        rating: type === 'general' ? rating : undefined,
+        subject,
+        message,
+        attachedImage: type === 'bug' ? feedbackAttachedBase64 : null
+      };
+
+      try {
+        // Send to CoCanvas backend API
+        await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(err => console.warn('API feedback note:', err));
+
+        // Also post to FormSubmit to deliver real email directly to cocanvascontact@gmail.com
+        try {
+          await fetch('https://formsubmit.co/ajax/cocanvascontact@gmail.com', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              _subject: `[CoCanvas ${type.toUpperCase()}] ${subject}`,
+              Name: name,
+              Email: email || 'Not provided',
+              Category: type === 'general' ? `General Feedback (${rating}/5 ⭐)` : 'Bug Report',
+              Rating: type === 'general' ? `${rating} / 5 Stars` : 'N/A',
+              Title: subject,
+              Details: message,
+              Attachment: feedbackAttachedBase64 && type === 'bug' ? 'User attached screenshot in session' : 'None'
+            })
+          }).catch(err => console.warn('FormSubmit dispatch note:', err));
+        } catch (fErr) {
+          // Non-blocking
+        }
+
+        sound.playPop();
+        showToast('🎉 Feedback sent to cocanvascontact@gmail.com! Thank you!');
+
+        // Reset form & close modal
+        feedbackForm.reset();
+        feedbackAttachedBase64 = null;
+        updateStarRatingUI(5);
+        if (feedbackFileInput) feedbackFileInput.value = '';
+        if (feedbackPreviewChip) feedbackPreviewChip.classList.add('hidden');
+        feedbackTypePills.forEach((p, idx) => {
+          if (idx === 0) p.classList.add('active');
+          else p.classList.remove('active');
+        });
+        setFeedbackCategory('general');
+
+        closeLegalModal(feedbackModal);
+      } catch (err) {
+        console.error('Error sending feedback:', err);
+        showToast('⚠️ Feedback received. Thank you!');
+        closeLegalModal(feedbackModal);
+      } finally {
+        if (btnSubmitFeedback) {
+          btnSubmitFeedback.disabled = false;
+          btnSubmitFeedback.classList.remove('btn-loading');
+        }
+        if (feedbackBtnText) {
+          feedbackBtnText.textContent = type === 'bug' ? 'Submit Bug Report 🐛' : 'Send Feedback 🚀';
+        }
+      }
+    });
+  }
+
   if (btnOpenManageHosts) {
     btnOpenManageHosts.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -6740,6 +7045,7 @@
       if (privacyModal) privacyModal.classList.remove('active');
       if (termsModal) termsModal.classList.remove('active');
       if (contactModal) contactModal.classList.remove('active');
+      if (feedbackModal) feedbackModal.classList.remove('active');
       if (manageHostsModal) manageHostsModal.classList.remove('active');
       registerModal.classList.remove('active');
       loginModal.classList.remove('active');

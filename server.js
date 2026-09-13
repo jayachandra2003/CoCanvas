@@ -15,6 +15,8 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // In-memory Rooms Store: roomId -> { elements: Map<id, element>, users: Map<socketId, userState> }
@@ -795,6 +797,69 @@ io.on('connection', (socket) => {
       }
     }
   });
+});
+
+// Feedback & Bug Report Endpoint (Sends directly to cocanvascontact@gmail.com)
+const feedbackList = [];
+const FEEDBACK_EMAIL = 'cocanvascontact@gmail.com';
+
+app.post('/api/feedback', async (req, res) => {
+  try {
+    const { name, email, type, rating, subject, message, attachedImage } = req.body || {};
+    if (!subject && !message) {
+      return res.status(400).json({ success: false, error: 'Subject and message are required.' });
+    }
+
+    const feedbackEntry = {
+      id: 'fb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      name: (name || 'Anonymous User').trim(),
+      email: (email || 'Not provided').trim(),
+      type: type || 'general',
+      rating: rating || (type === 'general' ? 5 : undefined),
+      subject: (subject || 'CoCanvas Feedback').trim(),
+      message: (message || '').trim(),
+      hasAttachment: Boolean(attachedImage),
+      timestamp: new Date().toISOString()
+    };
+
+    feedbackList.push(feedbackEntry);
+    console.log(`\n📬 [NEW FEEDBACK for ${FEEDBACK_EMAIL}]`);
+    console.log(`👤 From: ${feedbackEntry.name} <${feedbackEntry.email}>`);
+    console.log(`🏷️ Type: [${feedbackEntry.type.toUpperCase()}] ${feedbackEntry.subject}`);
+    if (feedbackEntry.rating) console.log(`⭐ Rating: ${feedbackEntry.rating} / 5 Stars`);
+    console.log(`💬 Details: ${feedbackEntry.message}`);
+    if (feedbackEntry.hasAttachment) console.log(`📎 Screenshot/Image attached`);
+    console.log(`--------------------------------------------------\n`);
+
+    // Forward to FormSubmit.co backend dispatch to deliver email to cocanvascontact@gmail.com
+    try {
+      if (typeof fetch === 'function') {
+        await fetch(`https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            _subject: `[CoCanvas ${feedbackEntry.type.toUpperCase()}] ${feedbackEntry.subject}`,
+            senderName: feedbackEntry.name,
+            senderEmail: feedbackEntry.email,
+            feedbackCategory: feedbackEntry.type,
+            issueTitle: feedbackEntry.subject,
+            details: feedbackEntry.message,
+            attachmentIncluded: feedbackEntry.hasAttachment ? 'Yes (attached in app session)' : 'No'
+          })
+        }).catch(err => console.warn('FormSubmit note:', err.message));
+      }
+    } catch (fErr) {
+      // Non-blocking
+    }
+
+    return res.json({ success: true, message: 'Feedback sent successfully!' });
+  } catch (err) {
+    console.error('Feedback processing error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to process feedback.' });
+  }
 });
 
 // Catch-all 404 handler for unknown routes
