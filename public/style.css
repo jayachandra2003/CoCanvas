@@ -1293,7 +1293,7 @@ html, body {
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-muted);
-  padding: 20px 20px 24px 20px;
+  padding: 18px 24px;
   border-top: var(--border-black);
   background: var(--bg-white);
   flex-shrink: 0;
@@ -1301,18 +1301,26 @@ html, body {
   margin-top: auto;
   box-sizing: border-box;
   line-height: 1.5;
+}
+
+.landing-footer-inner {
+  max-width: 980px;
+  width: 100%;
+  margin: 0 auto;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 20px;
+  box-sizing: border-box;
 }
 
 /* Sample 4: Footer Brand Header */
 .footer-brand-row {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .footer-brand-logo {
@@ -1352,8 +1360,8 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 12px;
+  flex-wrap: nowrap;
 }
 
 .footer-link-btn {
@@ -1386,15 +1394,17 @@ html, body {
 .footer-creator-credit {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  margin-top: 2px;
+  align-items: flex-end;
+  text-align: right;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .footer-author-text {
   font-size: 0.77rem;
   font-weight: 700;
   color: var(--text-main);
+  white-space: nowrap;
 }
 
 .footer-author-text strong {
@@ -1405,6 +1415,7 @@ html, body {
   font-size: 0.72rem;
   color: var(--text-muted);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 [data-theme="dark"] .landing-footer {
@@ -6886,9 +6897,16 @@ html, body {
     width: 100% !important;
     margin-top: auto !important;
     box-sizing: border-box !important;
+  }
+  .landing-footer-inner {
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
     gap: 9px !important;
+    width: 100% !important;
   }
   .footer-brand-row {
+    justify-content: center !important;
     gap: 6px !important;
   }
   .footer-brand-title {
@@ -6901,21 +6919,28 @@ html, body {
   .landing-footer-links {
     display: flex !important;
     flex-direction: row !important;
-    flex-wrap: wrap !important;
+    flex-wrap: nowrap !important;
     justify-content: center !important;
     align-items: center !important;
-    gap: 6px 10px !important;
-    max-width: 360px !important;
+    gap: 4px 6px !important;
+    width: 100% !important;
+    max-width: 100% !important;
     margin: 0 auto !important;
   }
   .footer-link-btn {
+    font-size: 0.72rem !important;
+    padding: 2px 2px !important;
+    white-space: nowrap !important;
+  }
+  .footer-link-dot {
     font-size: 0.75rem !important;
-    padding: 2px 3px !important;
+    margin: 0 1px !important;
   }
   .footer-creator-credit {
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
+    text-align: center !important;
     gap: 2px !important;
     margin-top: 1px !important;
   }
@@ -6928,7 +6953,6 @@ html, body {
     font-size: 0.70rem !important;
     line-height: 1.4 !important;
     text-align: center !important;
-    padding-bottom: 4px !important;
   }
   .hero-entry-card { padding: 22px 18px; margin-bottom: 0px; max-width: 100%; }
   
@@ -7191,14 +7215,23 @@ html, body {
     font-size: 0.72rem !important;
     padding: 14px 10px 48px 10px !important;
     padding-bottom: max(48px, calc(env(safe-area-inset-bottom, 24px) + 26px)) !important;
+  }
+  .landing-footer-inner {
     gap: 8px !important;
   }
   .landing-footer-links {
-    max-width: 330px !important;
-    gap: 4px 8px !important;
+    max-width: 100% !important;
+    gap: 2px 4px !important;
+    flex-wrap: nowrap !important;
   }
   .footer-link-btn {
-    font-size: 0.72rem !important;
+    font-size: 0.68rem !important;
+    padding: 1px 1px !important;
+    white-space: nowrap !important;
+  }
+  .footer-link-dot {
+    font-size: 0.70rem !important;
+    margin: 0 1px !important;
   }
   .footer-author-text {
     font-size: 0.71rem !important;
