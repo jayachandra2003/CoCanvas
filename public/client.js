@@ -6776,38 +6776,19 @@
       };
 
       try {
-        // Send to CoCanvas backend API
-        await fetch('/api/feedback', {
+        // Send to CoCanvas backend API which dispatches via Resend API
+        const response = await fetch('/api/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).catch(err => console.warn('API feedback note:', err));
+        });
 
-        // Also post to FormSubmit to deliver real email directly to cocanvascontact@gmail.com
-        try {
-          await fetch('https://formsubmit.co/ajax/3666df5a1eab2ce21f2b2ac8e2e5741e', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-              _subject: `[CoCanvas ${type.toUpperCase()}] ${subject}`,
-              Name: name,
-              Email: email || 'Not provided',
-              Category: type === 'general' ? `General Feedback (${rating}/5 ⭐)` : 'Bug Report',
-              Rating: type === 'general' ? `${rating} / 5 Stars` : 'N/A',
-              Title: subject,
-              Details: message,
-              Attachment: feedbackAttachedBase64 && type === 'bug' ? 'User attached screenshot in session' : 'None'
-            })
-          }).catch(err => console.warn('FormSubmit dispatch note:', err));
-        } catch (fErr) {
-          // Non-blocking
+        if (!response.ok) {
+          throw new Error('Server responded with an error');
         }
 
         sound.playPop();
-        showToast('🎉 Feedback sent to cocanvascontact@gmail.com! Thank you!');
+        showToast('🎉 Feedback sent successfully! Thank you!');
 
         // Reset form & close modal
         feedbackForm.reset();
