@@ -365,6 +365,7 @@ io.on('connection', (socket) => {
     if (user) {
       user.cursor = { x: data.x, y: data.y };
       if (data.pageId) user.activePageId = data.pageId;
+      if (data.canvasMode) user.canvasMode = data.canvasMode;
       if (data.chatText !== undefined) user.chatText = data.chatText;
     }
 
@@ -373,6 +374,7 @@ io.on('connection', (socket) => {
       x: data.x,
       y: data.y,
       pageId: data.pageId || (user && user.activePageId) || 'page_1',
+      canvasMode: data.canvasMode || (user && user.canvasMode),
       chatText: data.chatText
     });
   });
@@ -555,7 +557,7 @@ io.on('connection', (socket) => {
     if (!canUserModifyCanvas(room, userSessionId)) return;
 
     if (!element.pageId) {
-      element.pageId = room.activePageId || 'page_1';
+      element.pageId = (element.canvasMode === 'infinite') ? 'playground' : (room.activePageId || 'page_1');
     }
 
     room.elements.set(element.id, element);
@@ -597,7 +599,7 @@ io.on('connection', (socket) => {
 
     elements.forEach((el) => {
       if (el && el.id) {
-        if (!el.pageId) el.pageId = room.activePageId || 'page_1';
+        if (!el.pageId) el.pageId = (el.canvasMode === 'infinite') ? 'playground' : (room.activePageId || 'page_1');
         room.elements.set(el.id, el);
         if (room.pages && room.pages.has(el.pageId)) {
           room.pages.get(el.pageId).elements.set(el.id, el);
@@ -627,12 +629,19 @@ io.on('connection', (socket) => {
     const userSessionId = (currentUser && currentUser.sessionId) || socket.id;
     if (!canUserModifyCanvas(room, userSessionId)) return;
 
-    const targetPageId = data.pageId || (room.canvasMode === 'fixed_page' ? room.activePageId : null);
+    const targetPageId = data.pageId || (room.canvasMode === 'fixed_page' ? room.activePageId : 'playground');
 
-    if (targetPageId && room.pages && room.pages.has(targetPageId)) {
+    if (targetPageId === 'playground') {
+      for (const [elId, el] of room.elements.entries()) {
+        if (el.pageId === 'playground' || el.canvasMode === 'infinite') {
+          room.elements.delete(elId);
+        }
+      }
+      socket.to(currentRoomId).emit('elements:cleared', { pageId: 'playground' });
+    } else if (targetPageId && room.pages && room.pages.has(targetPageId)) {
       room.pages.get(targetPageId).elements.clear();
       for (const [elId, el] of room.elements.entries()) {
-        if (el.pageId === targetPageId) {
+        if (el.pageId === targetPageId && el.canvasMode !== 'infinite') {
           room.elements.delete(elId);
         }
       }

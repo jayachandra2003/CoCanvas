@@ -1845,16 +1845,28 @@
     ctx.restore();
   }
 
+  function getActiveDrawingPageId() {
+    return state.canvasMode === 'infinite' ? 'playground' : (state.activePageId || 'page_1');
+  }
+
+  function isElementVisibleInCurrentMode(el) {
+    if (!el) return false;
+    if (state.canvasMode === 'infinite') {
+      // In Playground mode: strictly show elements created in playground / infinite mode
+      return el.pageId === 'playground' || el.canvasMode === 'infinite';
+    } else {
+      // In Fixed Page mode: strictly show elements belonging to the active fixed page
+      const currentFixedPage = state.activePageId || 'page_1';
+      if (el.canvasMode === 'infinite' || el.pageId === 'playground') return false;
+      return el.pageId === currentFixedPage || (!el.pageId && currentFixedPage === 'page_1');
+    }
+  }
+
   function redrawBoard() {
     boardCtx.clearRect(0, 0, viewWidth, viewHeight);
 
-    const isFixedPage = state.canvasMode === 'fixed_page';
-    const activePageId = state.activePageId || 'page_1';
-
-    // Page Isolation: In Fixed Page Mode, only render elements belonging to active page
-    const visibleElements = isFixedPage
-      ? state.elements.filter((el) => !el.pageId || el.pageId === activePageId)
-      : state.elements;
+    // Mode & Page Isolation: strictly render elements visible in the active mode
+    const visibleElements = state.elements.filter((el) => isElementVisibleInCurrentMode(el));
 
     visibleElements.forEach((el) => {
       if (el.type !== 'sticky' && el.type !== 'text') {
@@ -1875,7 +1887,10 @@
     const mh = minimapCanvas.height || 105;
     minimapCtx.clearRect(0, 0, mw, mh);
     let minX = -1000, minY = -600, maxX = 1000, maxY = 600;
-    state.elements.forEach((el) => {
+    
+    const visibleElements = state.elements.filter((el) => isElementVisibleInCurrentMode(el));
+
+    visibleElements.forEach((el) => {
       const b = getElementBounds(el);
       if (b.minX < minX) minX = b.minX;
       if (b.minY < minY) minY = b.minY;
@@ -1888,7 +1903,7 @@
     const miniScale = Math.min(mw / Math.max(100, maxX - minX), mh / Math.max(100, maxY - minY));
 
     minimapCtx.fillStyle = '#FF6B4A';
-    state.elements.forEach((el) => {
+    visibleElements.forEach((el) => {
       const b = getElementBounds(el);
       minimapCtx.fillRect((b.minX - minX) * miniScale, (b.minY - minY) * miniScale, Math.max(2, (b.maxX - b.minX) * miniScale), Math.max(2, (b.maxY - b.minY) * miniScale));
     });
@@ -1953,8 +1968,8 @@
   function syncDomElementPosition(el, domNode) {
     if (!domNode) return;
 
-    // Page Isolation check: Hide DOM elements belonging to other pages in fixed_page mode
-    if (state.canvasMode === 'fixed_page' && el.pageId && el.pageId !== (state.activePageId || 'page_1')) {
+    // Mode & Page Isolation check: Hide DOM elements not belonging to current mode / page
+    if (!isElementVisibleInCurrentMode(el)) {
       domNode.style.display = 'none';
       return;
     } else {
@@ -3236,13 +3251,13 @@
 
     // Remote Cursors (Rendered if user has not toggled them hidden)
     if (state.showRemoteCursors !== false) {
-      const isFixedPage = state.canvasMode === 'fixed_page';
-      const activePageId = state.activePageId || 'page_1';
+      const currentContext = getActiveDrawingPageId();
 
       state.collaborators.forEach((peer) => {
         if (!peer.cursor) return;
-        // Page Isolation: In Fixed Page Mode, only render cursors of collaborators on the same active page
-        if (isFixedPage && peer.activePageId && peer.activePageId !== activePageId) {
+        const peerContext = peer.activePageId || (peer.canvasMode === 'infinite' ? 'playground' : 'page_1');
+        // Isolation: strictly render cursors of collaborators in the same mode and page
+        if (peerContext !== currentContext) {
           return;
         }
         const screenPos = worldToScreen(peer.cursor.x, peer.cursor.y);
@@ -3475,7 +3490,8 @@
       socket.emit('cursor:move', {
         x: worldPos.x,
         y: worldPos.y,
-        pageId: state.activePageId || 'page_1',
+        pageId: getActiveDrawingPageId(),
+        canvasMode: state.canvasMode,
         chatText: chatText !== undefined ? chatText : (state.localChatActive ? cursorChatInput.value : '')
       });
     }
@@ -3783,13 +3799,13 @@
 
     // 1. Peer remote in-progress drawings
     if (state.remoteLiveDrafts && state.remoteLiveDrafts.size > 0) {
-      const isFixedPage = state.canvasMode === 'fixed_page';
-      const activePageId = state.activePageId || 'page_1';
+      const currentContext = getActiveDrawingPageId();
 
       state.remoteLiveDrafts.forEach((draft) => {
         if (!draft) return;
-        // Page Isolation: In Fixed Page Mode, only render live draft strokes on the active page
-        if (isFixedPage && draft.pageId && draft.pageId !== activePageId) {
+        const draftContext = draft.pageId || (draft.canvasMode === 'infinite' ? 'playground' : 'page_1');
+        // Mode & Page Isolation: only render live draft strokes on the active mode & page
+        if (draftContext !== currentContext) {
           return;
         }
 
@@ -3878,7 +3894,7 @@
       if (state.activeTool === 'laser') {
         isDrawing = true;
         addLaserPoint(e.clientX, e.clientY, state.user.color);
-        socket.emit('laser:trail', { x: worldPos.x, y: worldPos.y, color: state.user.color });
+        socket.emit('laser:trail', { x: worldPos.x, y: worldPos.y, pageId: getActiveDrawingPageId(), canvasMode: state.canvasMode, color: state.user.color });
         return;
       }
 
@@ -3886,7 +3902,8 @@
         const newSticky = {
           id: 'sticky_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           type: 'sticky',
-          pageId: state.activePageId || 'page_1',
+          pageId: getActiveDrawingPageId(),
+          canvasMode: state.canvasMode,
           x: worldPos.x - 100,
           y: worldPos.y - 80,
           theme: 'yellow',
@@ -3906,7 +3923,8 @@
         const newText = {
           id: 'text_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           type: 'text',
-          pageId: state.activePageId || 'page_1',
+          pageId: getActiveDrawingPageId(),
+          canvasMode: state.canvasMode,
           x: worldPos.x,
           y: worldPos.y,
           text: '',
@@ -3928,7 +3946,8 @@
         const newCode = {
           id: 'code_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           type: 'code',
-          pageId: state.activePageId || 'page_1',
+          pageId: getActiveDrawingPageId(),
+          canvasMode: state.canvasMode,
           x: worldPos.x - 280,
           y: worldPos.y - 150,
           w: 560,
@@ -4042,7 +4061,7 @@
 
       if (state.activeTool === 'laser') {
         addLaserPoint(e.clientX, e.clientY, state.user.color);
-        socket.emit('laser:trail', { x: worldPos.x, y: worldPos.y, pageId: state.activePageId || 'page_1', color: state.user.color });
+        socket.emit('laser:trail', { x: worldPos.x, y: worldPos.y, pageId: getActiveDrawingPageId(), canvasMode: state.canvasMode, color: state.user.color });
         return;
       }
 
@@ -4061,7 +4080,8 @@
         redrawDraftLayer();
         socket.emit('draw:live', {
           tool: state.activeTool,
-          pageId: state.activePageId || 'page_1',
+          pageId: getActiveDrawingPageId(),
+          canvasMode: state.canvasMode,
           points: activeStrokePoints,
           color: state.activeColor,
           width: state.activeWidth
@@ -4070,7 +4090,8 @@
         redrawDraftLayer();
         socket.emit('draw:live', {
           tool: state.activeTool,
-          pageId: state.activePageId || 'page_1',
+          pageId: getActiveDrawingPageId(),
+          canvasMode: state.canvasMode,
           shapeStart: currentShapeStart,
           shapeEnd: worldPos,
           color: state.activeColor,
@@ -4129,6 +4150,8 @@
           const newEl = {
             id: 'stroke_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             type: state.activeTool,
+            pageId: getActiveDrawingPageId(),
+            canvasMode: state.canvasMode,
             points: finalPoints,
             color: state.activeColor,
             width: state.activeWidth
@@ -4226,12 +4249,10 @@
 
   function hitTestAnyElement(worldPos) {
     const threshold = 18 / state.zoom;
-    const isFixed = state.canvasMode === 'fixed_page';
-    const activePage = state.activePageId || 'page_1';
 
     for (let i = state.elements.length - 1; i >= 0; i--) {
       const el = state.elements[i];
-      if (isFixed && el.pageId && el.pageId !== activePage) continue;
+      if (!isElementVisibleInCurrentMode(el)) continue;
 
       if (ALL_2D_SHAPES.includes(el.type) || el.type === 'image') {
         const minX = Math.min(el.x, el.x + (el.w || 0));
@@ -4254,12 +4275,13 @@
 
   function getShapeElementObject(tool, start, end) {
     const id = 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
-    const pageId = state.activePageId || 'page_1';
+    const pageId = getActiveDrawingPageId();
+    const canvasMode = state.canvasMode;
 
     if (tool === 'line' || tool === 'arrow' || tool === 'curve') {
       const dist = Math.hypot(end.x - start.x, end.y - start.y);
       if (dist < 3) return null;
-      return { id, type: tool, pageId, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color: state.activeColor, width: state.activeWidth };
+      return { id, type: tool, pageId, canvasMode, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color: state.activeColor, width: state.activeWidth };
     } else if (ALL_2D_SHAPES.includes(tool)) {
       const x = Math.min(start.x, end.x);
       const y = Math.min(start.y, end.y);
@@ -4270,6 +4292,7 @@
         id,
         type: tool,
         pageId,
+        canvasMode,
         x,
         y,
         w,
@@ -4285,7 +4308,10 @@
 
   function commitNewElement(el) {
     if (!el.pageId) {
-      el.pageId = state.activePageId || 'page_1';
+      el.pageId = getActiveDrawingPageId();
+    }
+    if (!el.canvasMode) {
+      el.canvasMode = state.canvasMode;
     }
     state.elements.push(el);
     state.undoStack.push({ type: 'add', element: el });
@@ -4298,13 +4324,11 @@
 
   function eraseAtPoint(worldPos) {
     const eraserRadius = (state.activeEraserSize || 20) / 2;
-    const isFixed = state.canvasMode === 'fixed_page';
-    const activePage = state.activePageId || 'page_1';
     let erasedAny = false;
 
     for (let i = state.elements.length - 1; i >= 0; i--) {
       const el = state.elements[i];
-      if (isFixed && el.pageId && el.pageId !== activePage) continue;
+      if (!isElementVisibleInCurrentMode(el)) continue;
 
       if (ALL_BRUSH_TOOLS.includes(el.type)) {
         if (!el.points || el.points.length === 0) continue;
@@ -4547,6 +4571,8 @@
     if (!canCurrentUserDraw()) return;
     const cx = screenToWorld(viewWidth / 2, viewHeight / 2).x - 360;
     const cy = screenToWorld(viewWidth / 2, viewHeight / 2).y - 200;
+    const pageId = getActiveDrawingPageId();
+    const canvasMode = state.canvasMode;
     const columns = [
       { title: 'TO DO', theme: 'yellow', x: cx },
       { title: 'IN PROGRESS', theme: 'sky', x: cx + 260 },
@@ -4555,9 +4581,9 @@
     const batch = [];
     columns.forEach((col, i) => {
       batch.push(
-        { id: 'shape_kb_' + Date.now() + '_' + i, type: 'rect', x: col.x, y: cy, w: 240, h: 400, color: '#64748B', width: 2 },
-        { id: 'text_kb_' + Date.now() + '_' + i, type: 'text', x: col.x + 12, y: cy + 12, text: `📌 ${col.title}`, color: '#FFFFFF', width: 4 },
-        { id: 'sticky_kb_' + Date.now() + '_' + i, type: 'sticky', x: col.x + 20, y: cy + 60, theme: col.theme, text: i === 0 ? 'Brainstorm features' : i === 1 ? 'Design UI prototype' : 'Complete submission', author: state.user.name || state.user.username }
+        { id: 'shape_kb_' + Date.now() + '_' + i, type: 'rect', pageId, canvasMode, x: col.x, y: cy, w: 240, h: 400, color: '#64748B', width: 2 },
+        { id: 'text_kb_' + Date.now() + '_' + i, type: 'text', pageId, canvasMode, x: col.x + 12, y: cy + 12, text: `📌 ${col.title}`, color: '#FFFFFF', width: 4 },
+        { id: 'sticky_kb_' + Date.now() + '_' + i, type: 'sticky', pageId, canvasMode, x: col.x + 20, y: cy + 60, theme: col.theme, text: i === 0 ? 'Brainstorm features' : i === 1 ? 'Design UI prototype' : 'Complete submission', author: state.user.name || state.user.username }
       );
     });
     batch.forEach((el) => {
@@ -4575,13 +4601,15 @@
     if (!canCurrentUserDraw()) return;
     const center = screenToWorld(viewWidth / 2, viewHeight / 2);
     const size = 300;
+    const pageId = getActiveDrawingPageId();
+    const canvasMode = state.canvasMode;
     const batch = [
-      { id: 'shape_mx_1', type: 'arrow', x1: center.x - size, y1: center.y, x2: center.x + size, y2: center.y, color: '#38BDF8', width: 3 },
-      { id: 'shape_mx_2', type: 'arrow', x1: center.x, y1: center.y + size, x2: center.x, y2: center.y - size, color: '#34D399', width: 3 },
-      { id: 'text_mx_1', type: 'text', x: center.x - size + 20, y: center.y - size + 20, text: '⭐ High Impact / Low Effort (Quick Wins)', color: '#34D399', width: 3 },
-      { id: 'text_mx_2', type: 'text', x: center.x + 20, y: center.y - size + 20, text: '🚀 High Impact / High Effort (Strategic)', color: '#FBBF24', width: 3 },
-      { id: 'text_mx_3', type: 'text', x: center.x - size + 20, y: center.y + 20, text: '⏳ Low Impact / Low Effort (Fill-ins)', color: '#94A3B8', width: 3 },
-      { id: 'text_mx_4', type: 'text', x: center.x + 20, y: center.y + 20, text: '⚠️ Low Impact / High Effort (Avoid)', color: '#F43F5E', width: 3 }
+      { id: 'shape_mx_1', type: 'arrow', pageId, canvasMode, x1: center.x - size, y1: center.y, x2: center.x + size, y2: center.y, color: '#38BDF8', width: 3 },
+      { id: 'shape_mx_2', type: 'arrow', pageId, canvasMode, x1: center.x, y1: center.y + size, x2: center.x, y2: center.y - size, color: '#34D399', width: 3 },
+      { id: 'text_mx_1', type: 'text', pageId, canvasMode, x: center.x - size + 20, y: center.y - size + 20, text: '⭐ High Impact / Low Effort (Quick Wins)', color: '#34D399', width: 3 },
+      { id: 'text_mx_2', type: 'text', pageId, canvasMode, x: center.x + 20, y: center.y - size + 20, text: '🚀 High Impact / High Effort (Strategic)', color: '#FBBF24', width: 3 },
+      { id: 'text_mx_3', type: 'text', pageId, canvasMode, x: center.x - size + 20, y: center.y + 20, text: '⏳ Low Impact / Low Effort (Fill-ins)', color: '#94A3B8', width: 3 },
+      { id: 'text_mx_4', type: 'text', pageId, canvasMode, x: center.x + 20, y: center.y + 20, text: '⚠️ Low Impact / High Effort (Avoid)', color: '#F43F5E', width: 3 }
     ];
     batch.forEach((el) => {
       state.elements.push(el);
@@ -4597,6 +4625,8 @@
     if (!canCurrentUserDraw()) return;
     const cx = screenToWorld(viewWidth / 2, viewHeight / 2).x - 360;
     const cy = screenToWorld(viewWidth / 2, viewHeight / 2).y - 200;
+    const pageId = getActiveDrawingPageId();
+    const canvasMode = state.canvasMode;
     const columns = [
       { title: '🎉 WHAT WENT WELL', theme: 'mint', x: cx },
       { title: '💡 WHAT TO IMPROVE', theme: 'coral', x: cx + 260 },
@@ -4605,9 +4635,9 @@
     const batch = [];
     columns.forEach((col, i) => {
       batch.push(
-        { id: 'shape_rt_' + Date.now() + '_' + i, type: 'rect', x: col.x, y: cy, w: 240, h: 400, color: '#64748B', width: 2 },
-        { id: 'text_rt_' + Date.now() + '_' + i, type: 'text', x: col.x + 12, y: cy + 12, text: col.title, color: '#FFFFFF', width: 4 },
-        { id: 'sticky_rt_' + Date.now() + '_' + i, type: 'sticky', x: col.x + 20, y: cy + 60, theme: col.theme, text: i === 0 ? 'Smooth 60fps performance!' : i === 1 ? 'Add more shortcut hotkeys' : 'Deploy assignment live', author: state.user.name || state.user.username }
+        { id: 'shape_rt_' + Date.now() + '_' + i, type: 'rect', pageId, canvasMode, x: col.x, y: cy, w: 240, h: 400, color: '#64748B', width: 2 },
+        { id: 'text_rt_' + Date.now() + '_' + i, type: 'text', pageId, canvasMode, x: col.x + 12, y: cy + 12, text: col.title, color: '#FFFFFF', width: 4 },
+        { id: 'sticky_rt_' + Date.now() + '_' + i, type: 'sticky', pageId, canvasMode, x: col.x + 20, y: cy + 60, theme: col.theme, text: i === 0 ? 'Smooth 60fps performance!' : i === 1 ? 'Add more shortcut hotkeys' : 'Deploy assignment live', author: state.user.name || state.user.username }
       );
     });
     batch.forEach((el) => {
@@ -5736,7 +5766,8 @@
       emoji,
       x: worldPos.x,
       y: worldPos.y,
-      pageId: state.activePageId || 'page_1',
+      pageId: getActiveDrawingPageId(),
+      canvasMode: state.canvasMode,
       userName: state.user.name || state.user.username
     });
   }
@@ -5886,7 +5917,7 @@
     ctx.save();
     ctx.scale(scale, scale);
     state.elements.forEach((el) => {
-      if (el.type !== 'sticky' && el.type !== 'text' && el.type !== 'code') drawElement(ctx, el);
+      if (isElementVisibleInCurrentMode(el) && el.type !== 'sticky' && el.type !== 'text' && el.type !== 'code') drawElement(ctx, el);
     });
     ctx.restore();
     return exportCanvas;
@@ -6190,7 +6221,7 @@
         item.className = `page-dropdown-item ${isActive ? 'active' : ''}`;
         
         // Count elements on this page
-        const elCount = state.elements.filter((el) => (!el.pageId && idx === 0) || el.pageId === p.id).length;
+        const elCount = state.elements.filter((el) => ((!el.pageId && idx === 0) || el.pageId === p.id) && el.canvasMode !== 'infinite' && el.pageId !== 'playground').length;
 
         item.innerHTML = `
           <span>📄 ${escapeHtml(p.name || ('Page ' + (idx + 1)))}</span>
@@ -6244,7 +6275,7 @@
       return;
     }
     const targetPage = state.pages.find((p) => p.id === pageId) || { number: 1, name: 'Page' };
-    const pageElementCount = state.elements.filter((el) => el.pageId === pageId).length;
+    const pageElementCount = state.elements.filter((el) => el.pageId === pageId && el.canvasMode !== 'infinite' && el.pageId !== 'playground').length;
 
     const confirmMsg = pageElementCount > 0
       ? `Delete "${targetPage.name || ('Page ' + targetPage.number)}" containing ${pageElementCount} elements?`
@@ -6263,10 +6294,12 @@
       return;
     }
     state.canvasMode = mode;
+    clearSelection();
     updateCanvasModeUI();
     updatePageNavUI();
     renderGrid();
     redrawBoard();
+    redrawDraftLayer();
     syncAllDomElementPositions();
     sound.playClick();
 
@@ -6277,7 +6310,11 @@
       showToast('🌐 Switched to Infinite Playground Mode');
     }
 
+    if (lastClientPos) {
+      broadcastCursor(lastClientPos.x, lastClientPos.y);
+    }
     socket.emit('canvas:set_mode', { mode });
+    socket.emit('page:switch', { pageId: getActiveDrawingPageId(), canvasMode: mode });
   }
 
   // Canvas Mode & Page Navigation Event Listeners
@@ -6364,15 +6401,18 @@
     const activePage = (state.pages && state.pages.find(p => p.id === state.activePageId)) || { number: 1, name: 'Page 1' };
     const promptMsg = isFixed
       ? `Clear all drawings on ${activePage.name || ('Page ' + activePage.number)}?`
-      : 'Clear the entire collaborative whiteboard?';
+      : 'Clear all drawings on the infinite Playground?';
 
     if (confirm(promptMsg)) {
       if (isFixed) {
         const activePageId = state.activePageId || 'page_1';
-        state.elements = state.elements.filter((el) => el.pageId && el.pageId !== activePageId);
+        state.elements = state.elements.filter((el) => {
+          if (el.canvasMode === 'infinite' || el.pageId === 'playground') return true;
+          return el.pageId && el.pageId !== activePageId;
+        });
         for (const [elId, domNode] of state.domElementsMap.entries()) {
           const el = state.elements.find((item) => item.id === elId);
-          if (!el || el.pageId === activePageId) {
+          if (!el || (el.pageId === activePageId && el.canvasMode !== 'infinite')) {
             domNode.remove();
             state.domElementsMap.delete(elId);
           }
@@ -6385,16 +6425,22 @@
         sound.playPop();
         showToast('Page cleared');
       } else {
-        state.elements = [];
-        domLayer.innerHTML = '';
-        state.domElementsMap.clear();
+        // Clear Playground elements only
+        state.elements = state.elements.filter((el) => el.pageId !== 'playground' && el.canvasMode !== 'infinite');
+        for (const [elId, domNode] of state.domElementsMap.entries()) {
+          const el = state.elements.find((item) => item.id === elId);
+          if (!el || el.pageId === 'playground' || el.canvasMode === 'infinite') {
+            domNode.remove();
+            state.domElementsMap.delete(elId);
+          }
+        }
         clearSelection();
         state.undoStack = [];
         state.redoStack = [];
         redrawBoard();
-        socket.emit('elements:clear', {});
+        socket.emit('elements:clear', { pageId: 'playground' });
         sound.playPop();
-        showToast('Board cleared');
+        showToast('Playground cleared');
       }
     }
   });
@@ -7124,7 +7170,9 @@
   });
 
   socket.on('laser:trailed', (data) => {
-    if (state.canvasMode === 'fixed_page' && data.pageId && data.pageId !== (state.activePageId || 'page_1')) {
+    const currentContext = getActiveDrawingPageId();
+    const targetContext = data.pageId || (data.canvasMode === 'infinite' ? 'playground' : 'page_1');
+    if (targetContext !== currentContext) {
       return;
     }
     const screenPos = worldToScreen(data.x, data.y);
@@ -7148,9 +7196,16 @@
   socket.on('element:added', (el) => {
     if (!state.elements.some((item) => item.id === el.id)) {
       state.elements.push(el);
-      if (el.type === 'sticky') createStickyNoteNode(el);
-      else if (el.type === 'text') createTextBoxNode(el);
-      else if (el.type === 'code') createCodeSnippetNode(el);
+      if (el.type === 'sticky') {
+        const node = createStickyNoteNode(el);
+        syncDomElementPosition(el, node);
+      } else if (el.type === 'text') {
+        const node = createTextBoxNode(el);
+        syncDomElementPosition(el, node);
+      } else if (el.type === 'code') {
+        const node = createCodeSnippetNode(el);
+        syncDomElementPosition(el, node);
+      }
       redrawBoard();
     }
   });
@@ -7268,19 +7323,43 @@
 
   socket.on('elements:cleared', (data = {}) => {
     if (data && data.pageId) {
-      state.elements = state.elements.filter((el) => el.pageId && el.pageId !== data.pageId);
-      for (const [elId, domNode] of state.domElementsMap.entries()) {
-        const el = state.elements.find((item) => item.id === elId);
-        if (!el || el.pageId === data.pageId) {
-          domNode.remove();
-          state.domElementsMap.delete(elId);
+      const targetPageId = data.pageId;
+      if (targetPageId === 'playground') {
+        state.elements = state.elements.filter((el) => el.pageId !== 'playground' && el.canvasMode !== 'infinite');
+        for (const [elId, domNode] of state.domElementsMap.entries()) {
+          const el = state.elements.find((item) => item.id === elId);
+          if (!el || el.pageId === 'playground' || el.canvasMode === 'infinite') {
+            domNode.remove();
+            state.domElementsMap.delete(elId);
+          }
+        }
+        if (state.canvasMode === 'infinite') {
+          clearSelection();
+          state.undoStack = [];
+          state.redoStack = [];
+          redrawBoard();
+          showToast('Playground was cleared by a collaborator');
+        }
+      } else {
+        state.elements = state.elements.filter((el) => {
+          if (el.canvasMode === 'infinite' || el.pageId === 'playground') return true;
+          return el.pageId && el.pageId !== targetPageId;
+        });
+        for (const [elId, domNode] of state.domElementsMap.entries()) {
+          const el = state.elements.find((item) => item.id === elId);
+          if (!el || (el.pageId === targetPageId && el.canvasMode !== 'infinite')) {
+            domNode.remove();
+            state.domElementsMap.delete(elId);
+          }
+        }
+        if (state.canvasMode === 'fixed_page' && state.activePageId === targetPageId) {
+          clearSelection();
+          state.undoStack = [];
+          state.redoStack = [];
+          redrawBoard();
+          showToast('Page was cleared by a collaborator');
         }
       }
-      clearSelection();
-      state.undoStack = [];
-      state.redoStack = [];
-      redrawBoard();
-      showToast('Page was cleared by a collaborator');
     } else {
       state.elements = [];
       domLayer.innerHTML = '';
@@ -7294,7 +7373,9 @@
   });
 
   socket.on('reaction:emitted', (data) => {
-    if (state.canvasMode === 'fixed_page' && data.pageId && data.pageId !== (state.activePageId || 'page_1')) {
+    const currentContext = getActiveDrawingPageId();
+    const targetContext = data.pageId || (data.canvasMode === 'infinite' ? 'playground' : 'page_1');
+    if (targetContext !== currentContext) {
       return;
     }
     const screenPos = worldToScreen(data.x, data.y);
@@ -7303,7 +7384,9 @@
   });
 
   socket.on('radar:pinged', (data) => {
-    if (state.canvasMode === 'fixed_page' && data.pageId && data.pageId !== (state.activePageId || 'page_1')) {
+    const currentContext = getActiveDrawingPageId();
+    const targetContext = data.pageId || (data.canvasMode === 'infinite' ? 'playground' : 'page_1');
+    if (targetContext !== currentContext) {
       return;
     }
     const screenPos = worldToScreen(data.x, data.y);
