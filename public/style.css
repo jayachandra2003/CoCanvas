@@ -407,7 +407,7 @@ html, body {
 
 /* Landing Main Hero (Clean Lobby Container) */
 .landing-main {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -416,6 +416,7 @@ html, body {
   max-width: 980px;
   margin: 0 auto;
   width: 100%;
+  flex-shrink: 0;
 }
 
 /* 🌟 Hero Entry Card (Restored Classic Vertical Format) */
@@ -1293,6 +1294,9 @@ html, body {
   padding: 22px;
   border-top: var(--border-black);
   background: var(--bg-white);
+  flex-shrink: 0;
+  width: 100%;
+  margin-top: auto;
 }
 
 [data-theme="dark"] .landing-footer {
@@ -1337,22 +1341,22 @@ html, body {
   padding: 0 16px;
   z-index: 100;
   touch-action: auto;
+  gap: 12px;
 }
 
 .nav-left, .nav-right {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .nav-center {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
   pointer-events: auto;
   z-index: 110;
 }
@@ -5920,9 +5924,27 @@ html, body {
   }
 }
 
+/* Laptops, Compact Desktops & Mobile Desktop Site Mode (<= 1200px) */
+@media (max-width: 1200px) {
+  .top-nav {
+    left: 10px;
+    right: 10px;
+    padding: 0 10px;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .top-nav::-webkit-scrollbar { display: none; }
+  .room-label { display: none; }
+  .room-pill { padding: 4px 8px; gap: 6px; }
+  .nav-left, .nav-right, .nav-center { gap: 6px; }
+}
+
 /* Laptops & Tablets (<= 1100px) */
 @media (max-width: 1100px) {
-  .top-nav { left: 12px; right: 12px; }
+  .top-nav { left: 10px; right: 10px; }
   #templatesBtn span, #shareRoomBtn span { display: none; }
 }
 
@@ -5935,8 +5957,18 @@ html, body {
 
 /* Mobile & Small Screens (<= 768px) */
 @media (max-width: 768px) {
-  .landing-header { padding: 0 16px; height: 58px; }
-  .landing-main { padding: 20px 14px; }
+  .landing-screen {
+    -webkit-overflow-scrolling: touch;
+  }
+  .landing-header { padding: 0 16px; height: 58px; flex-shrink: 0; }
+  .landing-main { padding: 20px 14px; flex: 1 0 auto; flex-shrink: 0; }
+  .landing-footer {
+    padding: 18px 14px 48px 14px;
+    padding-bottom: max(48px, calc(env(safe-area-inset-bottom, 0px) + 28px));
+    flex-shrink: 0;
+    width: 100%;
+    margin-top: auto;
+  }
   .hero-entry-card { padding: 22px 18px; margin-bottom: 0px; max-width: 100%; }
   
   /* Scrollable, non-overlapping top navigation bar on mobile */
