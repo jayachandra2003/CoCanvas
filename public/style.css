@@ -1832,6 +1832,13 @@ html, body {
   right: auto;
   transform: translateX(-50%);
 }
+.room-mode-menu.open,
+.room-mode-menu.active {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
 .room-mode-menu .dropdown-header-title {
   font-size: 0.65rem;
   font-weight: 900;
@@ -2182,6 +2189,33 @@ html, body {
   right: 0;
   left: auto;
   z-index: 260;
+}
+
+.export-popover-menu {
+  min-width: 230px;
+  padding: 6px;
+  gap: 4px;
+}
+.export-popover-menu .dropdown-item {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1.5px solid transparent;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+  box-sizing: border-box;
+}
+.export-popover-menu .dropdown-item:hover {
+  background: var(--bg-card-cream);
+  border-color: #000000;
 }
 
 .danger-dock-btn:hover {
