@@ -407,15 +407,16 @@ html, body {
 
 /* Landing Main Hero (Clean Lobby Container) */
 .landing-main {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 24px 20px 16px 20px;
+  padding: 24px 20px 20px 20px;
   max-width: 980px;
   margin: 0 auto;
   width: 100%;
+  box-sizing: border-box;
   flex-shrink: 0;
 }
 
@@ -1292,7 +1293,7 @@ html, body {
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-muted);
-  padding: 16px 20px 20px 20px;
+  padding: 18px 20px 24px 20px;
   border-top: var(--border-black);
   background: var(--bg-white);
   flex-shrink: 0;
@@ -1303,15 +1304,21 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .landing-footer-links {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
+}
+
+.footer-links-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .footer-link-btn {
@@ -1326,6 +1333,7 @@ html, body {
   text-decoration: underline;
   text-underline-offset: 3px;
   transition: color 0.15s ease, transform 0.15s ease;
+  white-space: nowrap;
 }
 
 .footer-link-btn:hover {
@@ -1347,6 +1355,7 @@ html, body {
   overflow-wrap: break-word;
   font-size: 0.76rem;
   color: var(--text-muted);
+  line-height: 1.45;
 }
 
 [data-theme="dark"] .landing-footer {
@@ -6803,24 +6812,49 @@ html, body {
     -webkit-overflow-scrolling: touch;
   }
   .landing-header { padding: 0 16px; height: 58px; flex-shrink: 0; }
-  .landing-main { padding: 18px 12px 14px 12px; flex: 1 0 auto; flex-shrink: 0; justify-content: flex-start; }
+  .landing-main { padding: 18px 12px 14px 12px; flex: 0 0 auto; flex-shrink: 0; justify-content: flex-start; }
   .landing-footer {
-    padding: 16px 14px 60px 14px !important;
-    padding-bottom: max(60px, calc(env(safe-area-inset-bottom, 0px) + 36px)) !important;
-    font-size: 0.74rem !important;
-    line-height: 1.55 !important;
+    padding: 16px 14px 50px 14px !important;
+    padding-bottom: max(50px, calc(env(safe-area-inset-bottom, 20px) + 30px)) !important;
+    font-size: 0.75rem !important;
+    line-height: 1.5 !important;
     text-align: center !important;
     flex-shrink: 0 !important;
     width: 100% !important;
     margin-top: auto !important;
     box-sizing: border-box !important;
+    gap: 8px !important;
   }
-  .landing-footer span {
-    display: inline-block !important;
-    max-width: 100% !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-    overflow-wrap: break-word !important;
+  .landing-footer-links {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 6px 14px !important;
+    max-width: 380px !important;
+    margin: 0 auto !important;
+  }
+  .footer-links-divider {
+    display: none !important;
+  }
+  .footer-links-group {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  .footer-link-btn {
+    font-size: 0.75rem !important;
+    padding: 2px 3px !important;
+  }
+  .landing-footer-copy {
+    display: block !important;
+    font-size: 0.73rem !important;
+    line-height: 1.5 !important;
+    max-width: 330px !important;
+    margin: 0 auto !important;
+    padding-bottom: 8px !important;
+    text-align: center !important;
   }
   .hero-entry-card { padding: 22px 18px; margin-bottom: 0px; max-width: 100%; }
   
@@ -7081,8 +7115,23 @@ html, body {
   .dock-btn { width: 34px; height: 34px; }
   .landing-footer {
     font-size: 0.72rem !important;
-    padding: 14px 10px 64px 10px !important;
-    padding-bottom: max(64px, calc(env(safe-area-inset-bottom, 0px) + 40px)) !important;
+    padding: 14px 10px 54px 10px !important;
+    padding-bottom: max(54px, calc(env(safe-area-inset-bottom, 24px) + 32px)) !important;
+    gap: 7px !important;
+  }
+  .landing-footer-links {
+    max-width: 330px !important;
+    gap: 4px 10px !important;
+  }
+  .footer-links-group {
+    gap: 6px !important;
+  }
+  .footer-link-btn {
+    font-size: 0.72rem !important;
+  }
+  .landing-footer-copy {
+    font-size: 0.70rem !important;
+    max-width: 300px !important;
   }
   .contact-author-box {
     flex-wrap: wrap;
