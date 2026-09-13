@@ -60,36 +60,23 @@
         </div>
 
         <div class="landing-header-right">
-          <!-- Interactive Hanging Lightbulb Theme Switch -->
-          <div class="hanging-lamp-wrap" id="landingThemeToggleBtn" title="Click or pull the bulb to toggle theme!" role="button" tabindex="0">
-            <div class="hanging-wire"></div>
-            <div class="lamp-fixture">
-              <div class="lamp-socket"></div>
-              <div class="lamp-bulb-glass">
-                <svg class="lamp-bulb-svg" viewBox="0 0 48 56" width="42" height="50">
-                  <defs>
-                    <radialGradient id="bulbGlassGrad" cx="50%" cy="45%" r="55%">
-                      <stop offset="0%" stop-color="#FFFBEB" stop-opacity="1"/>
-                      <stop offset="55%" stop-color="#FDE68A" stop-opacity="0.9"/>
-                      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.2"/>
-                    </radialGradient>
-                    <radialGradient id="bulbDarkGlassGrad" cx="45%" cy="40%" r="60%">
-                      <stop offset="0%" stop-color="rgba(255, 255, 255, 0.28)"/>
-                      <stop offset="45%" stop-color="rgba(51, 65, 85, 0.55)"/>
-                      <stop offset="100%" stop-color="rgba(15, 23, 42, 0.85)"/>
-                    </radialGradient>
-                  </defs>
-                  <!-- Bulb Body -->
-                  <path class="bulb-body-shape" d="M16 8 C16 3, 32 3, 32 8 C32 16, 44 20, 44 32 C44 43, 35 51, 24 51 C13 51, 4 43, 4 32 C4 20, 16 16, 16 8 Z"/>
-                  <!-- Glass 3D Gloss Highlight Arc -->
-                  <path class="bulb-gloss-arc" d="M10 26 C9 33, 12 41, 16 45" fill="none" stroke-width="2.2" stroke-linecap="round"/>
-                  <!-- Internal Tungsten Filament -->
-                  <path class="bulb-filament-line" d="M19 14 L19 26 L22 20 L24 27 L26 20 L29 26 L29 14" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <div class="lamp-light-bloom"></div>
-              </div>
-            </div>
-          </div>
+          <!-- Clean Light / Dark Mode Toggle Button -->
+          <button class="nav-btn icon-btn landing-theme-btn" id="landingThemeToggleBtn" title="Toggle Light / Dark Mode">
+            <svg class="theme-icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg class="theme-icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -165,10 +152,18 @@
 
             <div class="hero-secondary-row">
               <button class="hero-secondary-btn" id="btnCreatePrivateRoom">
-                <span>🔒 Create Room</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="hero-btn-svg">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Create Room</span>
               </button>
               <button class="hero-secondary-btn" id="btnOpenJoinCodeInput">
-                <span>🔗 Join Code</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="hero-btn-svg">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                <span>Join Code</span>
               </button>
             </div>
 
@@ -191,9 +186,9 @@
               <h3>About</h3>
             </div>
             <div class="info-card-content">
-              <p><strong>CoCanvas</strong> is a free, instant real-time collaborative whiteboard, live coding workspace, and multi-page visual canvas.</p>
-              <p>Switch between <strong>Fixed Page Mode</strong> for clean multi-page presentations and <strong>Playground Mode</strong> for infinite drawing! Sketch with 9 MS Paint brushes, code in real-time, brainstorm with sticky notes, and present seamlessly in Host Mode.</p>
-              <p>Enjoy continuous voice typing with live translation, page-isolated collaborators, laser pointers, stickers, chat, and 2x HD Retina export. Have fun collaborating!</p>
+              <p><strong>CoCanvas</strong> is a free, instant real-time collaborative whiteboard, live coding workspace, and multi-page visual presentation canvas.</p>
+              <p>Switch seamlessly between <strong>Fixed Page Mode</strong> for clean slide presentations and <strong>Playground Mode</strong> for infinite drawing! Sketch with 9 MS Paint brushes, code with the live IDE compiler, brainstorm with sticky notes, and lead in Host Mode.</p>
+              <p>Features custom photo avatar cropping, multi-language continuous voice typing with live English translation, laser pointers, page-isolated collaborators, 5-star feedback, and 2x HD Retina export.</p>
             </div>
           </div>
 
@@ -209,15 +204,16 @@
                 <span class="news-release-date">Version 4.0</span>
               </div>
               <ul class="news-updates-list">
+                <li><span class="news-item-icon">📸</span><span><strong>Photo Avatar Cropper & Adjuster</strong>: WhatsApp/Instagram-style interactive crop modal with zoom slider, rotation & circular mask</span></li>
+                <li><span class="news-item-icon">🎨</span><span><strong>Modern Vector Wave Landing UI</strong>: Redesigned header, sleek vector wave background & 1-click theme switcher</span></li>
                 <li><span class="news-item-icon">📄</span><span><strong>Fixed Multi-Page Mode</strong>: Dedicated multi-page canvas with page-isolated drawings, bottom dock & fit-to-window</span></li>
                 <li><span class="news-item-icon">🎓</span><span><strong>Smart Presentation Sync</strong>: Host Mode syncs page flips & mode switches to viewers; Friendly Mode allows independent navigation</span></li>
+                <li><span class="news-item-icon">💬</span><span><strong>Interactive Feedback & Bug Reports</strong>: 5-star rating system, bug reporter with attachments & direct email delivery</span></li>
                 <li><span class="news-item-icon">🎯</span><span><strong>Page-Isolated Collaborators</strong>: Cursors, live drafts, laser trails & reactions are isolated to the active page</span></li>
-                <li><span class="news-item-icon">🔔</span><span><strong>Compact Top-Right Toasts</strong>: Redesigned sleek notifications docked under top bar with smooth slide animation</span></li>
                 <li><span class="news-item-icon">🎙️</span><span><strong>Multi-Language Voice Typing</strong>: Speaks in any language & auto-translates to English in real time</span></li>
-                <li><span class="news-item-icon">🛡️</span><span><strong>2-Kick Anti-Abuse Ban</strong>: Host kick tracking with permanent room ban protection</span></li>
-                <li><span class="news-item-icon">👥</span><span><strong>Room Members & Roles Hub</strong>: Top-right modal to manage hosts, jump to view & kick users</span></li>
-                <li><span class="news-item-icon">🎨</span><span><strong>MS Paint Brushes & Stickers</strong>: 9 realistic brushes, custom photo avatars, emoji stickers & palettes</span></li>
-                <li><span class="news-item-icon">💻</span><span><strong>Smart IDE Code Compiler</strong>: Real-time collaborative code editor with syntax formatting</span></li>
+                <li><span class="news-item-icon">🛡️</span><span><strong>2-Kick Anti-Abuse Ban</strong>: Host kick tracking with permanent room ban protection & Roles Hub</span></li>
+                <li><span class="news-item-icon">🖌️</span><span><strong>9 MS Paint Brushes & Stickers</strong>: Calligraphy, Oil, Crayon, Marker, Watercolor, Spray, Pencil & custom palettes</span></li>
+                <li><span class="news-item-icon">💻</span><span><strong>Smart IDE Code Compiler</strong>: Real-time collaborative code editor with syntax formatting & multi-language execution</span></li>
               </ul>
             </div>
           </div>
@@ -233,21 +229,21 @@
                 <span class="guide-step-num">1</span>
                 <div class="guide-step-text">
                   <strong>Pick Avatar & Name</strong>
-                  <p>Choose an avatar or upload your own custom photo.</p>
+                  <p>Choose an emoji avatar or upload & crop your own custom profile photo.</p>
                 </div>
               </div>
               <div class="guide-step-item">
                 <span class="guide-step-num">2</span>
                 <div class="guide-step-text">
                   <strong>Start Instant Canvas</strong>
-                  <p>Create a room or join friends with a 6-character code.</p>
+                  <p>Create a room or join friends with a simple 6-character code.</p>
                 </div>
               </div>
               <div class="guide-step-item">
                 <span class="guide-step-num">3</span>
                 <div class="guide-step-text">
-                  <strong>Draw, Code & Switch Pages</strong>
-                  <p>Switch between Fixed Page & Playground modes, use 9 brushes, smart IDE, sticky notes & voice chat.</p>
+                  <strong>Draw, Code & Collaborate</strong>
+                  <p>Switch between Fixed Page & Playground modes, use 9 brushes, smart IDE, sticky notes & voice typing.</p>
                 </div>
               </div>
               <div class="guide-step-item">
@@ -1508,6 +1504,71 @@
             </div>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Modal 9: Avatar Photo Adjuster & Cropper (WhatsApp / Instagram style) -->
+    <div class="modal-backdrop" id="avatarCropModal">
+      <div class="modal-card crop-modal-card glass-panel animate-pop">
+        <div class="modal-header">
+          <div class="crop-modal-header-info">
+            <span class="crop-header-icon">📸</span>
+            <h3>Adjust Profile Photo</h3>
+          </div>
+          <button class="close-modal-btn" id="closeAvatarCropBtn">&times;</button>
+        </div>
+
+        <div class="crop-modal-body">
+          <!-- Crop Viewport Container -->
+          <div class="crop-viewport-container" id="cropViewportContainer">
+            <canvas id="cropCanvas" class="crop-canvas"></canvas>
+            <!-- Circular Crop Cutout Mask & Grid Overlay -->
+            <div class="crop-circular-mask" id="cropCircularMask">
+              <div class="crop-rule-grid">
+                <div class="crop-grid-line crop-grid-h1"></div>
+                <div class="crop-grid-line crop-grid-h2"></div>
+                <div class="crop-grid-line crop-grid-v1"></div>
+                <div class="crop-grid-line crop-grid-v2"></div>
+              </div>
+            </div>
+            <div class="crop-drag-hint">
+              <span>🖐️ Drag photo to reposition</span>
+            </div>
+          </div>
+
+          <!-- Controls: Zoom & Rotate Toolbar -->
+          <div class="crop-controls-toolbar">
+            <div class="crop-zoom-control">
+              <button type="button" class="crop-tool-btn" id="btnCropZoomOut" title="Zoom Out">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+              <div class="crop-slider-wrap">
+                <input type="range" id="cropZoomSlider" min="1" max="3" step="0.01" value="1" />
+              </div>
+              <button type="button" class="crop-tool-btn" id="btnCropZoomIn" title="Zoom In">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+            </div>
+
+            <div class="crop-actions-toolbar">
+              <button type="button" class="crop-secondary-tool-btn" id="btnCropRotate" title="Rotate 90°">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                <span>Rotate</span>
+              </button>
+              <button type="button" class="crop-secondary-tool-btn" id="btnCropReset" title="Reset alignment">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                <span>Reset</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer crop-modal-footer">
+          <button type="button" class="modal-action-btn btn-secondary-modal" id="btnCancelCrop">Cancel</button>
+          <button type="button" class="modal-action-btn btn-apply-crop" id="btnApplyCrop">
+            <span>Apply Photo ✨</span>
+          </button>
+        </div>
       </div>
     </div>
 

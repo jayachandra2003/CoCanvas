@@ -583,7 +583,253 @@
     updateLandingUI();
   });
 
-  // Custom Photo Upload on Landing
+  // =========================================================================
+  // INTERACTIVE AVATAR PHOTO ADJUSTER & CROPPER (WhatsApp / Instagram style)
+  // =========================================================================
+  const avatarCropModal = document.getElementById('avatarCropModal');
+  const closeAvatarCropBtn = document.getElementById('closeAvatarCropBtn');
+  const btnCancelCrop = document.getElementById('btnCancelCrop');
+  const btnApplyCrop = document.getElementById('btnApplyCrop');
+  const cropCanvas = document.getElementById('cropCanvas');
+  const cropViewportContainer = document.getElementById('cropViewportContainer');
+  const cropZoomSlider = document.getElementById('cropZoomSlider');
+  const btnCropZoomIn = document.getElementById('btnCropZoomIn');
+  const btnCropZoomOut = document.getElementById('btnCropZoomOut');
+  const btnCropRotate = document.getElementById('btnCropRotate');
+  const btnCropReset = document.getElementById('btnCropReset');
+
+  let cropState = {
+    img: null,
+    scale: 1,
+    minScale: 1,
+    maxScale: 3,
+    offsetX: 0,
+    offsetY: 0,
+    rotation: 0,
+    isDragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    initialOffsetX: 0,
+    initialOffsetY: 0,
+    targetCropSize: 220,
+    vw: 320,
+    vh: 300
+  };
+
+  function openCropModalWithFile(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      showToast('Please select a valid image file');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        initCropSession(img);
+        if (avatarCropModal) {
+          avatarCropModal.classList.add('active');
+          sound.playModalOpen();
+        }
+      };
+      img.onerror = () => showToast('Failed to load image');
+      img.src = e.target.result;
+    };
+    reader.onerror = () => showToast('Error reading file');
+    reader.readAsDataURL(file);
+  }
+
+  function closeCropModal() {
+    if (avatarCropModal) avatarCropModal.classList.remove('active');
+    if (landingAvatarFileInput) landingAvatarFileInput.value = '';
+    cropState.img = null;
+  }
+
+  if (closeAvatarCropBtn) closeAvatarCropBtn.addEventListener('click', closeCropModal);
+  if (btnCancelCrop) btnCancelCrop.addEventListener('click', closeCropModal);
+  if (avatarCropModal) {
+    avatarCropModal.addEventListener('click', (e) => {
+      if (e.target === avatarCropModal) closeCropModal();
+    });
+  }
+
+  function initCropSession(img) {
+    cropState.img = img;
+    cropState.rotation = 0;
+    cropState.offsetX = 0;
+    cropState.offsetY = 0;
+
+    const rect = cropViewportContainer ? cropViewportContainer.getBoundingClientRect() : { width: 320, height: 300 };
+    cropState.vw = rect.width || 320;
+    cropState.vh = rect.height || 300;
+    cropState.targetCropSize = Math.min(220, cropState.vw - 40, cropState.vh - 40);
+
+    if (cropCanvas) {
+      cropCanvas.width = cropState.vw;
+      cropCanvas.height = cropState.vh;
+    }
+
+    // Min scale so image always completely covers the 220px circle crop diameter
+    const isRotated = cropState.rotation === 90 || cropState.rotation === 270;
+    const curW = isRotated ? img.height : img.width;
+    const curH = isRotated ? img.width : img.height;
+    const minScaleW = cropState.targetCropSize / curW;
+    const minScaleH = cropState.targetCropSize / curH;
+    cropState.minScale = Math.max(minScaleW, minScaleH);
+    cropState.maxScale = Math.max(cropState.minScale * 3.5, 3.0);
+    cropState.scale = cropState.minScale;
+
+    if (cropZoomSlider) {
+      cropZoomSlider.min = cropState.minScale;
+      cropZoomSlider.max = cropState.maxScale;
+      cropZoomSlider.step = (cropState.maxScale - cropState.minScale) / 200;
+      cropZoomSlider.value = cropState.scale;
+    }
+
+    renderCropCanvas();
+  }
+
+  function renderCropCanvas() {
+    if (!cropCanvas || !cropState.img) return;
+    const ctx = cropCanvas.getContext('2d');
+    const { vw, vh, img, scale, offsetX, offsetY, rotation } = cropState;
+
+    ctx.clearRect(0, 0, vw, vh);
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    ctx.translate(vw / 2 + offsetX, vh / 2 + offsetY);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.scale(scale, scale);
+
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    ctx.restore();
+  }
+
+  // Pointer dragging & panning on crop viewport
+  if (cropViewportContainer) {
+    cropViewportContainer.addEventListener('pointerdown', (e) => {
+      if (!cropState.img) return;
+      cropState.isDragging = true;
+      cropState.dragStartX = e.clientX;
+      cropState.dragStartY = e.clientY;
+      cropState.initialOffsetX = cropState.offsetX;
+      cropState.initialOffsetY = cropState.offsetY;
+      try { cropViewportContainer.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    cropViewportContainer.addEventListener('pointermove', (e) => {
+      if (!cropState.isDragging || !cropState.img) return;
+      const dx = e.clientX - cropState.dragStartX;
+      const dy = e.clientY - cropState.dragStartY;
+      cropState.offsetX = cropState.initialOffsetX + dx;
+      cropState.offsetY = cropState.initialOffsetY + dy;
+      renderCropCanvas();
+    });
+
+    function endCropDrag(e) {
+      if (!cropState.isDragging) return;
+      cropState.isDragging = false;
+      try { cropViewportContainer.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+
+    cropViewportContainer.addEventListener('pointerup', endCropDrag);
+    cropViewportContainer.addEventListener('pointercancel', endCropDrag);
+
+    // Wheel Zoom
+    cropViewportContainer.addEventListener('wheel', (e) => {
+      if (!cropState.img) return;
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+      const newScale = Math.max(cropState.minScale, Math.min(cropState.maxScale, cropState.scale * zoomFactor));
+      cropState.scale = newScale;
+      if (cropZoomSlider) cropZoomSlider.value = newScale;
+      renderCropCanvas();
+    }, { passive: false });
+  }
+
+  // Zoom Slider
+  if (cropZoomSlider) {
+    cropZoomSlider.addEventListener('input', (e) => {
+      if (!cropState.img) return;
+      cropState.scale = parseFloat(e.target.value);
+      renderCropCanvas();
+    });
+  }
+
+  if (btnCropZoomIn) {
+    btnCropZoomIn.addEventListener('click', () => {
+      if (!cropState.img) return;
+      const nextScale = Math.min(cropState.maxScale, cropState.scale * 1.15);
+      cropState.scale = nextScale;
+      if (cropZoomSlider) cropZoomSlider.value = nextScale;
+      renderCropCanvas();
+    });
+  }
+
+  if (btnCropZoomOut) {
+    btnCropZoomOut.addEventListener('click', () => {
+      if (!cropState.img) return;
+      const nextScale = Math.max(cropState.minScale, cropState.scale / 1.15);
+      cropState.scale = nextScale;
+      if (cropZoomSlider) cropZoomSlider.value = nextScale;
+      renderCropCanvas();
+    });
+  }
+
+  if (btnCropRotate) {
+    btnCropRotate.addEventListener('click', () => {
+      if (!cropState.img) return;
+      cropState.rotation = (cropState.rotation + 90) % 360;
+      sound.playClick();
+      renderCropCanvas();
+    });
+  }
+
+  if (btnCropReset) {
+    btnCropReset.addEventListener('click', () => {
+      if (!cropState.img) return;
+      initCropSession(cropState.img);
+      sound.playClick();
+    });
+  }
+
+  // Apply Photo & Save Avatar
+  if (btnApplyCrop) {
+    btnApplyCrop.addEventListener('click', () => {
+      if (!cropState.img) return;
+
+      const exportSize = 256;
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = exportSize;
+      exportCanvas.height = exportSize;
+      const expCtx = exportCanvas.getContext('2d');
+      expCtx.imageSmoothingEnabled = true;
+      expCtx.imageSmoothingQuality = 'high';
+
+      const ratio = exportSize / cropState.targetCropSize;
+
+      expCtx.translate(exportSize / 2 + cropState.offsetX * ratio, exportSize / 2 + cropState.offsetY * ratio);
+      expCtx.rotate((cropState.rotation * Math.PI) / 180);
+      expCtx.scale(cropState.scale * ratio, cropState.scale * ratio);
+      expCtx.drawImage(cropState.img, -cropState.img.width / 2, -cropState.img.height / 2);
+
+      const croppedDataUrl = exportCanvas.toDataURL('image/jpeg', 0.92);
+
+      state.user.avatar = croppedDataUrl;
+      saveUserSession(state.user);
+      updateLandingUI();
+      if (state.user.isLoggedIn) {
+        socket.emit('auth:update_profile', { avatar: croppedDataUrl });
+      }
+
+      closeCropModal();
+      sound.playPop();
+      showToast('📸 Profile photo adjusted & applied!');
+    });
+  }
+
+  // Custom Photo Upload Triggers on Landing
   if (btnUploadCustomPhoto) {
     btnUploadCustomPhoto.addEventListener('click', () => {
       landingAvatarFileInput.click();
@@ -597,16 +843,7 @@
   landingAvatarFileInput.addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
     if (file) {
-      processImageFileToAvatarData(file, (dataUrl) => {
-        state.user.avatar = dataUrl;
-        saveUserSession(state.user);
-        updateLandingUI();
-        if (state.user.isLoggedIn) {
-          socket.emit('auth:update_profile', { avatar: dataUrl });
-        }
-        sound.playPop();
-        showToast('📸 Custom avatar photo applied!');
-      });
+      openCropModalWithFile(file);
     }
   });
 
@@ -623,16 +860,7 @@
     e.preventDefault();
     landingAvatarPreview.style.transform = '';
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processImageFileToAvatarData(e.dataTransfer.files[0], (dataUrl) => {
-        state.user.avatar = dataUrl;
-        saveUserSession(state.user);
-        updateLandingUI();
-        if (state.user.isLoggedIn) {
-          socket.emit('auth:update_profile', { avatar: dataUrl });
-        }
-        sound.playPop();
-        showToast('📸 Custom avatar photo applied!');
-      });
+      openCropModalWithFile(e.dataTransfer.files[0]);
     }
   });
 
@@ -6893,62 +7121,9 @@
     updateToggleCursorsUI();
   }
 
-  // Interactive Hanging Lightbulb Pull Switch Controller
+  // Light / Dark Theme Toggle Buttons
   if (landingThemeToggleBtn) {
-    let isDraggingLamp = false;
-    let lampStartY = 0;
-    let didPullTrigger = false;
-
-    function triggerLampSwitch() {
-      landingThemeToggleBtn.classList.remove('rebounding');
-      landingThemeToggleBtn.classList.add('pulled');
-      
-      toggleTheme();
-
-      setTimeout(() => {
-        landingThemeToggleBtn.classList.remove('pulled');
-        landingThemeToggleBtn.classList.add('rebounding');
-        setTimeout(() => {
-          landingThemeToggleBtn.classList.remove('rebounding');
-        }, 700);
-      }, 140);
-    }
-
-    landingThemeToggleBtn.addEventListener('click', (e) => {
-      if (!didPullTrigger) {
-        triggerLampSwitch();
-      }
-      didPullTrigger = false;
-    });
-
-    landingThemeToggleBtn.addEventListener('pointerdown', (e) => {
-      isDraggingLamp = true;
-      lampStartY = e.clientY;
-      didPullTrigger = false;
-      landingThemeToggleBtn.setPointerCapture(e.pointerId);
-    });
-
-    landingThemeToggleBtn.addEventListener('pointermove', (e) => {
-      if (!isDraggingLamp) return;
-      const deltaY = Math.max(0, Math.min(32, e.clientY - lampStartY));
-      landingThemeToggleBtn.style.transform = `translateY(${deltaY}px)`;
-      if (deltaY >= 18 && !didPullTrigger) {
-        didPullTrigger = true;
-      }
-    });
-
-    function endLampDrag(e) {
-      if (!isDraggingLamp) return;
-      isDraggingLamp = false;
-      landingThemeToggleBtn.style.transform = '';
-      if (didPullTrigger) {
-        triggerLampSwitch();
-      }
-      try { landingThemeToggleBtn.releasePointerCapture(e.pointerId); } catch (err) {}
-    }
-
-    landingThemeToggleBtn.addEventListener('pointerup', endLampDrag);
-    landingThemeToggleBtn.addEventListener('pointercancel', endLampDrag);
+    landingThemeToggleBtn.addEventListener('click', toggleTheme);
   }
 
   if (canvasThemeToggleBtn) {
