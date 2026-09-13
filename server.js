@@ -385,7 +385,7 @@ io.on('connection', (socket) => {
   socket.on('cursor:move', (data) => {
     if (!currentRoomId || !data) return;
     const room = rooms.get(currentRoomId);
-    if (!room) return;
+    if (!room || !room.users.has(socket.id)) return;
     
     const user = room.users.get(socket.id);
     if (user) {
@@ -407,6 +407,8 @@ io.on('connection', (socket) => {
 
   socket.on('laser:trail', (data) => {
     if (!currentRoomId || !data) return;
+    const room = rooms.get(currentRoomId);
+    if (!room || !room.users.has(socket.id)) return;
     socket.to(currentRoomId).emit('laser:trailed', {
       socketId: socket.id,
       x: data.x,
@@ -419,6 +421,8 @@ io.on('connection', (socket) => {
   // Live in-progress drawing streaming
   socket.on('draw:live', (data) => {
     if (!currentRoomId || !data) return;
+    const room = rooms.get(currentRoomId);
+    if (!room || !room.users.has(socket.id)) return;
     socket.to(currentRoomId).emit('draw:lived', {
       socketId: socket.id,
       ...data
@@ -427,6 +431,8 @@ io.on('connection', (socket) => {
 
   socket.on('draw:live_end', (data) => {
     if (!currentRoomId) return;
+    const room = rooms.get(currentRoomId);
+    if (!room || !room.users.has(socket.id)) return;
     socket.to(currentRoomId).emit('draw:lived_end', {
       socketId: socket.id,
       ...(data || {})

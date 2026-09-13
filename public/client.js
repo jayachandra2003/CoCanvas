@@ -3713,6 +3713,7 @@
   let lastBroadcastTime = 0;
 
   function broadcastCursor(clientX, clientY, chatText) {
+    if (!state.roomId || state.currentScreen !== 'whiteboard') return;
     const now = performance.now();
     if (now - lastBroadcastTime > 30 || chatText !== undefined) {
       lastBroadcastTime = now;
@@ -5007,7 +5008,7 @@
       screen.appendChild(mount);
     }
 
-    const popoverIds = ['brushesPopover', 'eraserPopover', 'shapesPopover', 'colorPopover', 'reactionPopover', 'exportMenu'];
+    const popoverIds = ['brushesPopover', 'eraserPopover', 'shapesPopover', 'colorPopover', 'reactionPopover', 'exportMenu', 'roomModeMenu'];
     popoverIds.forEach((id) => {
       const el = document.getElementById(id);
       if (el && el.parentElement !== mount) {
@@ -5015,17 +5016,29 @@
       }
     });
 
-    if (roomModeBtn) {
+    if (roomModeBtn && roomModeMenu) {
       roomModeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (!isCurrentUserHost()) {
           showToast(state.roomMode === 'host' ? '🎓 Room is in Presentation Mode (Controlled by Host)' : '🤝 Friendly Mode: Everyone can draw', 'info');
           return;
         }
-        const parent = roomModeBtn.closest('.dropdown-wrapper') || roomModeWrapper;
-        const isOpen = parent && parent.classList.contains('active');
+        const isOpen = roomModeMenu.classList.contains('open') || roomModeMenu.classList.contains('active');
         dismissAllPopovers();
-        if (!isOpen && parent) parent.classList.add('active');
+        if (!isOpen) {
+          const rect = roomModeBtn.getBoundingClientRect();
+          const menuWidth = Math.min(270, window.innerWidth - 20);
+          let targetLeft = rect.left + rect.width / 2 - menuWidth / 2;
+          targetLeft = Math.max(10, Math.min(window.innerWidth - menuWidth - 10, targetLeft));
+          roomModeMenu.style.position = 'fixed';
+          roomModeMenu.style.top = `${rect.bottom + 8}px`;
+          roomModeMenu.style.left = `${targetLeft}px`;
+          roomModeMenu.style.bottom = 'auto';
+          roomModeMenu.style.transform = 'none';
+          roomModeMenu.classList.add('open');
+          roomModeMenu.classList.add('active');
+          if (roomModeWrapper) roomModeWrapper.classList.add('active');
+        }
         sound.playClick();
       });
     }
@@ -6154,7 +6167,7 @@
   }
 
   exportPngBtn.addEventListener('click', () => {
-    exportMenu.parentElement.classList.remove('active');
+    dismissAllPopovers();
     const exportCanvas = generateExportCanvas(2);
     const link = document.createElement('a');
     link.download = `CoCanvas_${state.roomId || 'board'}_${Date.now()}.png`;
@@ -6165,7 +6178,7 @@
 
   if (exportPdfBtn) {
     exportPdfBtn.addEventListener('click', () => {
-      exportMenu.parentElement.classList.remove('active');
+      dismissAllPopovers();
       const exportCanvas = generateExportCanvas(2);
       const imgData = exportCanvas.toDataURL('image/png');
       const roomCode = state.roomId || 'Session';
@@ -6292,7 +6305,7 @@
 
   if (exportDocxBtn) {
     exportDocxBtn.addEventListener('click', () => {
-      exportMenu.parentElement.classList.remove('active');
+      dismissAllPopovers();
       const exportCanvas = generateExportCanvas(2);
       const imgData = exportCanvas.toDataURL('image/png');
       const roomCode = state.roomId || 'Session';
@@ -6345,7 +6358,7 @@
   }
 
   exportJsonBtn.addEventListener('click', () => {
-    exportMenu.parentElement.classList.remove('active');
+    dismissAllPopovers();
     const data = JSON.stringify({ version: '1.0', roomId: state.roomId, exportedAt: new Date().toISOString(), elements: state.elements }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -6358,6 +6371,7 @@
   });
 
   importJsonInput.addEventListener('change', (e) => {
+    dismissAllPopovers();
     if (!canCurrentUserDraw()) {
       showToast('🎓 Presentation Mode: Only the Host can import data.', 'warning');
       return;
@@ -7601,6 +7615,11 @@
     const userAvatar = (existing && existing.avatar) || avatar || '👋';
     showToast(`<strong>${escapeHtml(userName)}</strong> left the room`, 'leave', userAvatar);
     state.collaborators.delete(socketId);
+    for (const [id, peer] of state.collaborators.entries()) {
+      if (id === socketId || peer.id === socketId || peer.socketId === socketId) {
+        state.collaborators.delete(id);
+      }
+    }
     state.remoteLiveDrafts.delete(socketId);
     redrawDraftLayer();
     updateCollaboratorsUI();
@@ -7663,11 +7682,9 @@
   });
 
   socket.on('cursor:update', (data) => {
-    let peer = state.collaborators.get(data.socketId);
-    if (!peer) {
-      peer = { id: data.socketId, name: 'Collaborator', color: '#FF6B4A' };
-      state.collaborators.set(data.socketId, peer);
-    }
+    if (!data || !data.socketId) return;
+    const peer = state.collaborators.get(data.socketId);
+    if (!peer) return;
     peer.cursor = { x: data.x, y: data.y };
     if (data.pageId) peer.activePageId = data.pageId;
     if (data.chatText !== undefined) peer.chatText = data.chatText;
