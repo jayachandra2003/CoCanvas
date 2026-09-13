@@ -105,12 +105,22 @@ io.on('connection', (socket) => {
   let currentRoomId = null;
   let currentUser = null;
 
-  // 5. Join Room
-  socket.on('room:join', ({ roomId, user }) => {
+  // 5. Join / Create Room
+  socket.on('room:join', ({ roomId, user, isCreating }) => {
     if (!roomId) return;
+    const normalizedRoomId = String(roomId).trim().toUpperCase();
+
+    // If joining (not explicitly creating) and room does not exist, reject with room:not_found
+    if (!isCreating && !rooms.has(normalizedRoomId)) {
+      socket.emit('room:not_found', {
+        roomId: normalizedRoomId,
+        message: `Room "${normalizedRoomId}" does not exist or has been closed. Please check the room code or create a new room.`
+      });
+      return;
+    }
     
     // Leave previous room if any
-    if (currentRoomId && currentRoomId !== roomId) {
+    if (currentRoomId && currentRoomId !== normalizedRoomId) {
       socket.leave(currentRoomId);
       const prevRoom = rooms.get(currentRoomId);
       if (prevRoom) {
@@ -119,20 +129,20 @@ io.on('connection', (socket) => {
       }
     }
 
-    const room = getOrCreateRoom(roomId);
+    const room = getOrCreateRoom(normalizedRoomId);
     const userSessionId = (user && user.sessionId) ? user.sessionId : socket.id;
 
     // Check if user is banned from this room (kicked 2 or more times)
     const kickCount = (room.kickCounts && room.kickCounts.get(userSessionId)) || 0;
     if ((room.bannedSessionIds && room.bannedSessionIds.has(userSessionId)) || kickCount >= 2) {
       socket.emit('room:banned', {
-        roomId,
+        roomId: normalizedRoomId,
         reason: 'You cannot join this room because you were kicked 2 times by the Host.'
       });
       return;
     }
 
-    currentRoomId = roomId;
+    currentRoomId = normalizedRoomId;
 
     currentUser = {
       id: socket.id,

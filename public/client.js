@@ -971,7 +971,7 @@
     if (!state.user.friendTag) state.user.friendTag = generateGuestFriendTag(customName);
     saveUserSession(state.user);
     const roomId = generateRandomRoomCode();
-    enterWhiteboardScreen(roomId);
+    enterWhiteboardScreen(roomId, true);
   });
 
   btnCreatePrivateRoom.addEventListener('click', () => {
@@ -981,7 +981,7 @@
     if (!state.user.friendTag) state.user.friendTag = generateGuestFriendTag(customName);
     saveUserSession(state.user);
     const privateRoomId = generateRandomRoomCode();
-    enterWhiteboardScreen(privateRoomId);
+    enterWhiteboardScreen(privateRoomId, true);
   });
 
   btnOpenJoinCodeInput.addEventListener('click', () => {
@@ -1006,29 +1006,32 @@
     state.user.username = customName;
     if (!state.user.friendTag) state.user.friendTag = generateGuestFriendTag(customName);
     saveUserSession(state.user);
-    enterWhiteboardScreen(code);
+    enterWhiteboardScreen(code, false);
   });
 
-  function enterWhiteboardScreen(roomId) {
-    state.roomId = roomId;
-    state.currentScreen = 'whiteboard';
+  function enterWhiteboardScreen(roomId, isCreating = false) {
+    if (isCreating) {
+      state.roomId = roomId;
+      state.currentScreen = 'whiteboard';
 
-    landingScreen.classList.remove('active');
-    whiteboardScreen.classList.add('active');
-    currentRoomCodeEl.textContent = roomId;
-    document.title = `CoCanvas (Room: ${roomId}) — Real-Time Canvas`;
+      landingScreen.classList.remove('active');
+      whiteboardScreen.classList.add('active');
+      currentRoomCodeEl.textContent = roomId;
+      document.title = `CoCanvas (Room: ${roomId}) — Real-Time Canvas`;
 
-    const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?room=${roomId}`;
-    window.history.pushState({ path: newUrl }, '', newUrl);
+      const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?room=${roomId}`;
+      window.history.pushState({ path: newUrl }, '', newUrl);
 
-    resizeCanvases();
+      resizeCanvases();
+      sound.playPop();
+      showToast(`Created Room: ${roomId}`);
+    }
+
     socket.emit('room:join', {
       roomId,
-      user: state.user
+      user: state.user,
+      isCreating: Boolean(isCreating)
     });
-
-    sound.playPop();
-    showToast(`Joined Canvas: ${roomId}`);
   }
 
   if (btnExitRoom) {
@@ -7432,6 +7435,21 @@
     redrawBoard();
     syncAllDomElementPositions();
 
+    if (state.currentScreen !== 'whiteboard') {
+      state.currentScreen = 'whiteboard';
+      landingScreen.classList.remove('active');
+      whiteboardScreen.classList.add('active');
+      currentRoomCodeEl.textContent = data.roomId;
+      document.title = `CoCanvas (Room: ${data.roomId}) — Real-Time Canvas`;
+
+      const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?room=${data.roomId}`;
+      window.history.pushState({ path: newUrl }, '', newUrl);
+
+      resizeCanvases();
+      sound.playPop();
+      showToast(`Joined Room: ${data.roomId}`);
+    }
+
     if (state.canvasMode === 'fixed_page') {
       setTimeout(() => fitPageToScreen(), 60);
     }
@@ -7675,6 +7693,33 @@
     window.history.pushState({ path: cleanUrl }, '', cleanUrl);
 
     showToast(`🚫 Banned from room ${roomId || ''}`, 'warning');
+  });
+
+  socket.on('room:not_found', ({ roomId, message }) => {
+    sound.playPop();
+    state.roomId = null;
+    state.collaborators.clear();
+    state.elements = [];
+    state.domElementsMap.clear();
+    domLayer.innerHTML = '';
+    redrawBoard();
+
+    whiteboardScreen.classList.remove('active');
+    landingScreen.classList.add('active');
+    state.currentScreen = 'landing';
+    document.title = 'CoCanvas — Real-Time Collaborative Whiteboard';
+
+    const cleanUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
+    window.history.pushState({ path: cleanUrl }, '', cleanUrl);
+
+    if (joinCodeInlineBox) joinCodeInlineBox.classList.remove('hidden');
+    if (landingJoinCodeInput) {
+      landingJoinCodeInput.value = roomId || '';
+      landingJoinCodeInput.focus();
+      landingJoinCodeInput.select();
+    }
+
+    showToast(message || `Room "${roomId}" does not exist or has been closed. Please check the room code or create a new room.`, 'warning');
   });
 
   socket.on('toast:error', (msg) => {
@@ -8516,7 +8561,7 @@
         if (!state.user.friendTag) state.user.friendTag = generateGuestFriendTag(state.user.name);
         saveUserSession(state.user);
       }
-      enterWhiteboardScreen(targetRoom);
+      enterWhiteboardScreen(targetRoom, false);
     } else {
       updateLandingUI();
     }
