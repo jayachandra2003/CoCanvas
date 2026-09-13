@@ -797,6 +797,12 @@ io.on('connection', (socket) => {
   });
 });
 
+// Catch-all 404 handler for unknown routes
+app.use((req, res) => {
+  res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
+});
+
 server.listen(PORT, () => {
   console.log(`🔥 CoCanvas Server running smoothly on http://localhost:${PORT}`);
 });
+

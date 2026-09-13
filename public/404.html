@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 — Page Not Found | CoCanvas</title>
+  <link rel="icon" type="image/png" href="logo.png" />
+  <link rel="apple-touch-icon" href="logo.png" />
+  <meta name="theme-color" content="#FF6B4A" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #F4F2EB;
+      --bg-white: #FFFFFF;
+      --border-black: 2.5px solid #000000;
+      --shadow-md: 4px 4px 0px #000000;
+      --shadow-lg: 6px 6px 0px #000000;
+      --brand-orange: #FF6B4A;
+      --text-main: #111827;
+      --text-muted: #4B5563;
+      --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-canvas: #0E1015;
+        --bg-white: #161820;
+        --border-black: 2px solid #2B2F3D;
+        --shadow-md: 4px 4px 0px #07080B;
+        --shadow-lg: 6px 6px 0px #07080B;
+        --text-main: #F3F4F6;
+        --text-muted: #9CA3AF;
+      }
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: var(--bg-canvas);
+      font-family: var(--font-sans);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background-image: radial-gradient(circle at 50% 50%, rgba(255, 107, 74, 0.08) 0%, transparent 60%);
+    }
+    .error-card {
+      background: var(--bg-white);
+      border: var(--border-black);
+      border-radius: 24px;
+      box-shadow: var(--shadow-lg);
+      padding: 40px 32px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .badge-404 {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 3.5rem;
+      font-weight: 900;
+      color: #FFFFFF;
+      background: var(--brand-orange);
+      padding: 4px 24px;
+      border-radius: 16px;
+      border: var(--border-black);
+      box-shadow: 3px 3px 0px #000000;
+      line-height: 1.1;
+    }
+    .error-title {
+      font-size: 1.6rem;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+    }
+    .error-desc {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .btn-home {
+      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 48px;
+      padding: 0 28px;
+      background: #3B82F6;
+      color: #FFFFFF;
+      font-family: var(--font-sans);
+      font-size: 0.95rem;
+      font-weight: 800;
+      text-decoration: none;
+      border-radius: 14px;
+      border: var(--border-black);
+      box-shadow: var(--shadow-md);
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .btn-home:hover {
+      background: #1D4ED8;
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0px #000000;
+    }
+    .btn-home:active {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0px #000000;
+    }
+    .footer-brand {
+      margin-top: 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="error-card">
+    <div class="badge-404">404</div>
+    <h1 class="error-title">Canvas Not Found</h1>
+    <p class="error-desc">Oops! The page or room you are looking for has been erased or does not exist.</p>
+    <a href="/" class="btn-home">
+      <span>🎨</span>
+      <span>Return to CoCanvas</span>
+    </a>
+    <div class="footer-brand">
+      CoCanvas &copy; 2026 &bull; Built by Jaya Chandra Vennam
+    </div>
+  </div>
+</body>
+</html>
