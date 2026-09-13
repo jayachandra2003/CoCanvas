@@ -823,17 +823,12 @@ io.on('connection', (socket) => {
   });
 });
 
-// Resend Direct Email Delivery Integration
+// Feedback & Bug Report Direct Email Delivery
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FEEDBACK_EMAIL = process.env.FEEDBACK_EMAIL || 'jayachandravennam.jc@gmail.com';
+const FEEDBACK_EMAIL = 'cocanvascontact@gmail.com';
 const feedbackList = [];
 
 async function sendResendFeedbackEmail(feedbackEntry, attachedImageBase64) {
-  if (!RESEND_API_KEY) {
-    console.warn('⚠️ Resend API Key is missing.');
-    return;
-  }
-
   const isGeneral = feedbackEntry.type === 'general';
   const ratingStars = feedbackEntry.rating ? '⭐'.repeat(feedbackEntry.rating) : '5 / 5 Stars';
 
@@ -891,45 +886,72 @@ async function sendResendFeedbackEmail(feedbackEntry, attachedImageBase64) {
     </div>
   `;
 
-  const resendPayload = {
-    from: 'CoCanvas Feedback <onboarding@resend.dev>',
-    to: [FEEDBACK_EMAIL],
-    subject: `[CoCanvas ${feedbackEntry.type.toUpperCase()}] ${feedbackEntry.subject} - from ${feedbackEntry.name}`,
-    html: htmlContent
-  };
+  // 1. Dispatch via Resend API to cocanvascontact@gmail.com
+  if (RESEND_API_KEY) {
+    try {
+      const resendPayload = {
+        from: 'CoCanvas Feedback <onboarding@resend.dev>',
+        to: [FEEDBACK_EMAIL],
+        subject: `[CoCanvas ${feedbackEntry.type.toUpperCase()}] ${feedbackEntry.subject} - from ${feedbackEntry.name}`,
+        html: htmlContent
+      };
 
-  if (feedbackEntry.email && feedbackEntry.email !== 'Not provided') {
-    resendPayload.reply_to = feedbackEntry.email;
-  }
-
-  if (attachedImageBase64 && typeof attachedImageBase64 === 'string' && attachedImageBase64.includes('base64,')) {
-    const rawBase64 = attachedImageBase64.split('base64,')[1];
-    resendPayload.attachments = [
-      {
-        filename: 'screenshot.png',
-        content: rawBase64
+      if (feedbackEntry.email && feedbackEntry.email !== 'Not provided') {
+        resendPayload.reply_to = feedbackEntry.email;
       }
-    ];
+
+      if (attachedImageBase64 && typeof attachedImageBase64 === 'string' && attachedImageBase64.includes('base64,')) {
+        const rawBase64 = attachedImageBase64.split('base64,')[1];
+        resendPayload.attachments = [
+          {
+            filename: 'screenshot.png',
+            content: rawBase64
+          }
+        ];
+      }
+
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(resendPayload)
+      });
+      const resData = await res.json();
+      if (res.ok) {
+        console.log(`🚀 [Resend] Email delivered to ${FEEDBACK_EMAIL}! Email ID:`, resData.id);
+      } else {
+        console.warn('⚠️ [Resend Note]:', resData.message || resData);
+      }
+    } catch (rErr) {
+      console.warn('⚠️ Resend dispatch error:', rErr.message);
+    }
   }
 
+  // 2. Dispatch via FormSubmit directly to cocanvascontact@gmail.com
   try {
-    const response = await fetch('https://api.resend.com/emails', {
+    await fetch(`https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'http://localhost:3000',
+        'Referer': 'http://localhost:3000/'
       },
-      body: JSON.stringify(resendPayload)
-    });
-
-    const resData = await response.json();
-    if (!response.ok) {
-      console.error('⚠️ Resend API Error Response:', resData);
-    } else {
-      console.log('🚀 [Resend] Email delivered successfully! Email ID:', resData.id);
-    }
-  } catch (err) {
-    console.error('⚠️ Resend dispatch error:', err.message);
+      body: JSON.stringify({
+        _subject: `[CoCanvas ${feedbackEntry.type.toUpperCase()}] ${feedbackEntry.subject}`,
+        senderName: feedbackEntry.name,
+        senderEmail: feedbackEntry.email,
+        feedbackCategory: feedbackEntry.type === 'general' ? `General Feedback (${feedbackEntry.rating}/5 ⭐)` : 'Bug Report',
+        ratingGiven: feedbackEntry.rating ? `${feedbackEntry.rating} / 5 Stars` : 'N/A',
+        issueTitle: feedbackEntry.subject,
+        details: feedbackEntry.message,
+        attachmentIncluded: feedbackEntry.hasAttachment ? 'Yes (attached in app session)' : 'No'
+      })
+    }).catch(err => console.warn('FormSubmit note:', err.message));
+  } catch (fErr) {
+    // Non-blocking
   }
 }
 
