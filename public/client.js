@@ -788,6 +788,7 @@
     landingScreen.classList.remove('active');
     whiteboardScreen.classList.add('active');
     currentRoomCodeEl.textContent = roomId;
+    document.title = `CoCanvas (Room: ${roomId}) — Real-Time Canvas`;
 
     const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?room=${roomId}`;
     window.history.pushState({ path: newUrl }, '', newUrl);
@@ -817,6 +818,7 @@
       whiteboardScreen.classList.remove('active');
       landingScreen.classList.add('active');
       state.currentScreen = 'landing';
+      document.title = 'CoCanvas — Real-Time Collaborative Whiteboard';
       state.unreadChatCount = 0;
       if (chatUnreadBadge) {
         chatUnreadBadge.textContent = '0';
@@ -6486,6 +6488,51 @@
   shortcutsNavBtn.addEventListener('click', () => shortcutsModal.classList.add('active'));
   closeShortcutsBtn.addEventListener('click', () => shortcutsModal.classList.remove('active'));
 
+  // Legal & Contact Modals
+  const privacyModal = document.getElementById('privacyModal');
+  const btnOpenPrivacyPolicy = document.getElementById('btnOpenPrivacyPolicy');
+  const closePrivacyBtn = document.getElementById('closePrivacyBtn');
+  const btnAckPrivacy = document.getElementById('btnAckPrivacy');
+
+  const termsModal = document.getElementById('termsModal');
+  const btnOpenTermsOfService = document.getElementById('btnOpenTermsOfService');
+  const closeTermsBtn = document.getElementById('closeTermsBtn');
+  const btnAckTerms = document.getElementById('btnAckTerms');
+
+  const contactModal = document.getElementById('contactModal');
+  const btnOpenContactModal = document.getElementById('btnOpenContactModal');
+  const closeContactBtn = document.getElementById('closeContactBtn');
+  const btnAckContact = document.getElementById('btnAckContact');
+
+  function openLegalModal(modalEl) {
+    if (modalEl) {
+      dismissAllPopovers();
+      modalEl.classList.add('active');
+      sound.playPop();
+    }
+  }
+
+  function closeLegalModal(modalEl) {
+    if (modalEl) {
+      modalEl.classList.remove('active');
+    }
+  }
+
+  if (btnOpenPrivacyPolicy) btnOpenPrivacyPolicy.addEventListener('click', () => openLegalModal(privacyModal));
+  if (closePrivacyBtn) closePrivacyBtn.addEventListener('click', () => closeLegalModal(privacyModal));
+  if (btnAckPrivacy) btnAckPrivacy.addEventListener('click', () => closeLegalModal(privacyModal));
+  if (privacyModal) privacyModal.addEventListener('click', (e) => { if (e.target === privacyModal) closeLegalModal(privacyModal); });
+
+  if (btnOpenTermsOfService) btnOpenTermsOfService.addEventListener('click', () => openLegalModal(termsModal));
+  if (closeTermsBtn) closeTermsBtn.addEventListener('click', () => closeLegalModal(termsModal));
+  if (btnAckTerms) btnAckTerms.addEventListener('click', () => closeLegalModal(termsModal));
+  if (termsModal) termsModal.addEventListener('click', (e) => { if (e.target === termsModal) closeLegalModal(termsModal); });
+
+  if (btnOpenContactModal) btnOpenContactModal.addEventListener('click', () => openLegalModal(contactModal));
+  if (closeContactBtn) closeContactBtn.addEventListener('click', () => closeLegalModal(contactModal));
+  if (btnAckContact) btnAckContact.addEventListener('click', () => closeLegalModal(contactModal));
+  if (contactModal) contactModal.addEventListener('click', (e) => { if (e.target === contactModal) closeLegalModal(contactModal); });
+
   if (btnOpenManageHosts) {
     btnOpenManageHosts.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -6690,6 +6737,9 @@
     else if (key === '?') { shortcutsModal.classList.toggle('active'); }
     else if (key === 'escape') {
       shortcutsModal.classList.remove('active');
+      if (privacyModal) privacyModal.classList.remove('active');
+      if (termsModal) termsModal.classList.remove('active');
+      if (contactModal) contactModal.classList.remove('active');
       if (manageHostsModal) manageHostsModal.classList.remove('active');
       registerModal.classList.remove('active');
       loginModal.classList.remove('active');

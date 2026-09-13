@@ -1,0 +1,6 @@
+# CoCanvas Robots.txt
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://cocanvas.onrender.com/sitemap.xml
