@@ -60,8 +60,21 @@
 * **Smart Code IDE Engine**: Interactive multi-language code cards (Java, Python, C++, TypeScript, JavaScript, Rust, Go, HTML, CSS, JSON, Markdown) with auto-closing bracket pairs, smart enter expansion, and intelligent auto-indentation.
 * **Color-Themed Sticky Notes**: Editable sticky notes with Pastel themes (Yellow, Sky, Pink, Mint, Purple, Peach).
 
-### 🎨 Neo-Brutalist Design & Web Audio Synthesizer
-* **Dark & Light Mode**: Instant theme switcher with glassmorphism, high-contrast borders, and custom background patterns.
+### 📸 Profile Photo Adjuster & Interactive Cropper
+* **WhatsApp / Instagram Style Cropper**: Interactive circular crop modal with live rule-of-thirds grid overlay.
+* **Drag & Reposition**: Fluid pointer panning to position profile photo centered on faces/subjects.
+* **Zoom & Rotation Controls**: Smooth zoom slider with `+` / `–` buttons, mouse wheel zoom, and 90° rotation.
+* **High-Res 256x256 Output**: Generates crisp, lightweight JPEG avatars synced across all live multiplayer sessions.
+
+### 💬 Feedback & Bug Report System
+* **Interactive 5-Star Rating System**: Smooth general feedback with category badges and instant review submission.
+* **Full Bug Reporter with Attachments**: Upload screenshots and issue attachments directly within the modal.
+* **Resend Email API Integration**: Direct submission delivery to `cocanvascontact@gmail.com`.
+
+### 🎨 Modern Vector Wave Landing & Theme Switcher
+* **Modern Vector Wave UI**: Responsive collaborative backdrop with high contrast and desktop-balanced layout.
+* **Instant Light & Dark Mode**: 1-click theme switcher with smooth icon transitions and theme persistence.
+* **Spacious Desktop Layout**: Optimized 1240px wide presentation on Windows & macOS monitors.
 * **Procedural Sound Engine**: Zero-dependency Web Audio API synthesizer for clicks, pop feedback, radar pings, and emoji chimes (with 1-click global mute).
 
 ---
