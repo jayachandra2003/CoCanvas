@@ -43,6 +43,16 @@ app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Health check & keep-alive ping endpoint for UptimeRobot / external monitors
+app.get(['/health', '/ping'], (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    app: 'CoCanvas',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
 // In-memory Rooms Store: roomId -> { elements: Map<id, element>, users: Map<socketId, userState> }
 const rooms = new Map();
 
